@@ -2057,6 +2057,7 @@ static const fltSemantics *getOpFltSemantics(uint8_t OperandType) {
   case AMDGPU::OPERAND_INLINE_SPLIT_BARRIER_INT32:
     return &APFloat::IEEEsingle();
   case AMDGPU::OPERAND_REG_IMM_INT64:
+  case AMDGPU::OPERAND_REG_IMM_B64:
   case AMDGPU::OPERAND_REG_IMM_FP64:
   case AMDGPU::OPERAND_REG_INLINE_C_INT64:
   case AMDGPU::OPERAND_REG_INLINE_C_FP64:
@@ -2377,6 +2378,7 @@ void AMDGPUOperand::addLiteralImmOperand(MCInst &Inst, int64_t Val, bool ApplyMo
   if (Imm.IsFPImm) { // We got fp literal token
     switch (OpTy) {
     case AMDGPU::OPERAND_REG_IMM_INT64:
+    case AMDGPU::OPERAND_REG_IMM_B64:
     case AMDGPU::OPERAND_REG_IMM_FP64:
     case AMDGPU::OPERAND_REG_INLINE_C_INT64:
     case AMDGPU::OPERAND_REG_INLINE_C_FP64:
@@ -2513,6 +2515,7 @@ void AMDGPUOperand::addLiteralImmOperand(MCInst &Inst, int64_t Val, bool ApplyMo
     break;
 
   case AMDGPU::OPERAND_REG_IMM_INT64:
+  case AMDGPU::OPERAND_REG_IMM_B64:
   case AMDGPU::OPERAND_REG_INLINE_C_INT64:
     if (Lit == LitModifier::None &&
         AMDGPU::isInlinableLiteral64(Val, AsmParser->hasInv2PiInlineImm())) {
