@@ -1812,6 +1812,7 @@ inline unsigned getOperandSize(const MCOperandInfo &OpInfo) {
     return 4;
 
   case AMDGPU::OPERAND_REG_IMM_INT64:
+  case AMDGPU::OPERAND_REG_IMM_B64:
   case AMDGPU::OPERAND_REG_IMM_FP64:
   case AMDGPU::OPERAND_REG_INLINE_C_INT64:
   case AMDGPU::OPERAND_REG_INLINE_C_FP64:
