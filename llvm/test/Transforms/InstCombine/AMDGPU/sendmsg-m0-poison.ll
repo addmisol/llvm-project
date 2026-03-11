@@ -206,24 +206,12 @@ define void @test_sendmsg_unknown_id(i32 %val) {
   ret void
 }
 
-; Test MSG_HS_TESSFACTOR (2) on GFX11+ - doesn't use m0
-; On default target, this should NOT be folded (conflicting encoding with MSG_GS)
+; Test MSG_HS_TESSFACTOR (2) on GFX11+ - DOES use m0, should NOT be folded
+; On pre-GFX11, this is MSG_GS which also uses m0
 define void @test_sendmsg_hs_tessfactor(i32 %val) {
-; DEFAULT-LABEL: @test_sendmsg_hs_tessfactor(
-; DEFAULT-NEXT:    call void @llvm.amdgcn.s.sendmsg(i32 2, i32 [[VAL:%.*]])
-; DEFAULT-NEXT:    ret void
-;
-; GFX9-LABEL: @test_sendmsg_hs_tessfactor(
-; GFX9-NEXT:    call void @llvm.amdgcn.s.sendmsg(i32 2, i32 [[VAL:%.*]])
-; GFX9-NEXT:    ret void
-;
-; GFX10-LABEL: @test_sendmsg_hs_tessfactor(
-; GFX10-NEXT:    call void @llvm.amdgcn.s.sendmsg(i32 2, i32 [[VAL:%.*]])
-; GFX10-NEXT:    ret void
-;
-; GFX11-LABEL: @test_sendmsg_hs_tessfactor(
-; GFX11-NEXT:    call void @llvm.amdgcn.s.sendmsg(i32 2, i32 poison)
-; GFX11-NEXT:    ret void
+; CHECK-LABEL: @test_sendmsg_hs_tessfactor(
+; CHECK-NEXT:    call void @llvm.amdgcn.s.sendmsg(i32 2, i32 [[VAL:%.*]])
+; CHECK-NEXT:    ret void
 ;
   call void @llvm.amdgcn.s.sendmsg(i32 2, i32 %val)
   ret void
