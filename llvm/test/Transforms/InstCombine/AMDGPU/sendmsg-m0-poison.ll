@@ -18,7 +18,7 @@ define void @test_sendmsg_interrupt(i32 %val) {
 }
 
 ; MSG_GS (2) + GS_OP_EMIT (2 << 4) DOES use m0 (pre-GFX11) - should NOT be folded
-; On GFX11+ this is MSG_HS_TESSFACTOR which doesn't use m0
+; On GFX11+ this is MSG_HS_TESSFACTOR which also uses m0 - should NOT be folded
 ; On default target, this should NOT be folded (conflicting encoding)
 define void @test_sendmsg_gs_emit(i32 %val) {
 ; DEFAULT-LABEL: @test_sendmsg_gs_emit(
