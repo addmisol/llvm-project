@@ -141,7 +141,6 @@ struct MissingFeatures {
   static bool shouldReverseUnaryCondOnBoolExpr() { return false; }
 
   // RecordType
-  static bool skippedLayout() { return false; }
   static bool astRecordDeclAttr() { return false; }
   static bool zeroSizeRecordMembers() { return false; }
 
@@ -151,7 +150,6 @@ struct MissingFeatures {
 
   // Various handling of deferred processing in CIRGenModule.
   static bool cgmRelease() { return false; }
-  static bool deferredVtables() { return false; }
   static bool deferredFuncDecls() { return false; }
 
   // CXXABI
@@ -208,7 +206,6 @@ struct MissingFeatures {
   static bool aggValueSlotGC() { return false; }
   static bool aggValueSlotMayOverlap() { return false; }
   static bool aggValueSlotVolatile() { return false; }
-  static bool alignCXXRecordDecl() { return false; }
   static bool allocToken() { return false; }
   static bool appleArm64CXXABI() { return false; }
   static bool appleKext() { return false; }
