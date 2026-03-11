@@ -2485,15 +2485,15 @@ bool msgDoesNotUseM0(int64_t MsgId, const MCSubtargetInfo &STI) {
   // Explicitly list message types that are known to not use m0.
   // This is safer than excluding only GS_ALLOC_REQ, in case new message
   // types are added in the future that do use m0.
+  if (isGFX11Plus(STI)) {
+    switch (MsgId) {
+    case ID_DEALLOC_VGPRS_GFX11Plus:
+      return true;
+    default:
+      break;
+    }
+  }
   switch (MsgId) {
-  case ID_HS_TESSFACTOR_GFX11Plus:
-    // ID_GS_PreGFX11 has the same value as ID_HS_TESSFACTOR_GFX11Plus.
-    // GS uses m0, but HS_TESSFACTOR does not.
-    return isGFX11Plus(STI);
-  case ID_DEALLOC_VGPRS_GFX11Plus:
-    // ID_GS_DONE_PreGFX11 has the same value as ID_DEALLOC_VGPRS_GFX11Plus.
-    // GS_DONE uses m0, but DEALLOC_VGPRS does not.
-    return isGFX11Plus(STI);
   case ID_SAVEWAVE:
   case ID_STALL_WAVE_GEN:
   case ID_HALT_WAVES:
