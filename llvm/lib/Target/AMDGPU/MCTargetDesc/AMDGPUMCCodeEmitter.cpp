@@ -325,12 +325,12 @@ std::optional<uint64_t> AMDGPUMCCodeEmitter::getLitEncoding(
   case AMDGPU::OPERAND_REG_INLINE_C_INT64:
     // Signed 64-bit integer operand - use IsInt<32> for 32-bit literal check
     return getLit64Encoding(Desc, static_cast<uint64_t>(Imm), STI, false,
-                            /IsSigned=/true);
+                            /*IsSigned=*/true);
 
   case AMDGPU::OPERAND_REG_IMM_B64:
     // Unsigned 64-bit integer operand - use IsUInt<32> for 32-bit literal check
     return getLit64Encoding(Desc, static_cast<uint64_t>(Imm), STI, false,
-                            /IsSigned=/false);
+                            /*IsSigned=*/false);
 
   case AMDGPU::OPERAND_REG_INLINE_C_FP64:
   case AMDGPU::OPERAND_REG_INLINE_AC_FP64:
