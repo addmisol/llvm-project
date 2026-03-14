@@ -3047,6 +3047,66 @@ s_bitreplicate_b64_b32 s[0:1], 0
 // GFX12: s_bitreplicate_b64_b32 s[0:1], 0        ; encoding: [0x80,0x14,0x80,0xbe]
 
 s_bitreplicate_b64_b32 s[0:1], -1
+// GFX12: s_bitreplicate_b64_b32 s[0:1], -1       ; encoding: [0xc1,0x14,0x80,0xbe]
+
+s_bitreplicate_b64_b32 s[0:1], 0.5
+// GFX12: s_bitreplicate_b64_b32 s[0:1], 0.5      ; encoding: [0xf0,0x14,0x80,0xbe]
+
+s_bitreplicate_b64_b32 s[0:1], -4.0
+// GFX12: s_bitreplicate_b64_b32 s[0:1], -4.0     ; encoding: [0xf7,0x14,0x80,0xbe]
+
+s_bitreplicate_b64_b32 s[0:1], 0x3f717273
+// GFX12: s_bitreplicate_b64_b32 s[0:1], 0x3f717273 ; encoding: [0xff,0x14,0x80,0xbe,0x73,0x72,0x71,0x3f]
+
+s_bitreplicate_b64_b32 s[0:1], 0xaf123456
+// GFX12: s_bitreplicate_b64_b32 s[0:1], 0xaf123456 ; encoding: [0xff,0x14,0x80,0xbe,0x56,0x34,0x12,0xaf]
+
+s_and_saveexec_b32 s0, s1
+// GFX12: s_and_saveexec_b32 s0, s1               ; encoding: [0x01,0x20,0x80,0xbe]
+
+s_and_saveexec_b32 s105, s104
+// GFX12: s_and_saveexec_b32 s105, s104           ; encoding: [0x68,0x20,0xe9,0xbe]
+
+s_and_saveexec_b32 s0, s104
+// GFX12: s_and_saveexec_b32 s0, s104             ; encoding: [0x68,0x20,0x80,0xbe]
+
+s_and_saveexec_b32 s105, s1
+// GFX12: s_and_saveexec_b32 s105, s1             ; encoding: [0x01,0x20,0xe9,0xbe]
+
+s_and_saveexec_b32 vcc_lo, s1
+// GFX12: s_and_saveexec_b32 vcc_lo, s1           ; encoding: [0x01,0x20,0xea,0xbe]
+
+s_and_saveexec_b32 vcc_hi, s1
+// GFX12: s_and_saveexec_b32 vcc_hi, s1           ; encoding: [0x01,0x20,0xeb,0xbe]
+
+s_and_saveexec_b32 s0, exec_lo
+// GFX12: s_and_saveexec_b32 s0, exec_lo          ; encoding: [0x7e,0x20,0x80,0xbe]
+
+s_and_saveexec_b32 s0, exec_hi
+// GFX12: s_and_saveexec_b32 s0, exec_hi          ; encoding: [0x7f,0x20,0x80,0xbe]
+
+s_and_saveexec_b32 s0, vcc_lo
+// GFX12: s_and_saveexec_b32 s0, vcc_lo           ; encoding: [0x6a,0x20,0x80,0xbe]
+
+s_and_saveexec_b32 s0, vcc_hi
+// GFX12: s_and_saveexec_b32 s0, vcc_hi           ; encoding: [0x6b,0x20,0x80,0xbe]
+
+s_and_saveexec_b32 s0, m0
+// GFX12: s_and_saveexec_b32 s0, m0               ; encoding: [0x7d,0x20,0x80,0xbe]
+
+s_and_saveexec_b32 s0, 0
+// GFX12: s_and_saveexec_b32 s0, 0                ; encoding: [0x80,0x20,0x80,0xbe]
+
+s_and_saveexec_b32 s0, -1
+// GFX12: s_and_saveexec_b32 s0, -1               ; encoding: [0xc1,0x20,0x80,0xbe]
+
+s_and_saveexec_b32 s0, 0.5
+// GFX12: s_and_saveexec_b32 s0, 0.5              ; encoding: [0xf0,0x20,0x80,0xbe]
+
+s_and_saveexec_b32 s0, -4.0
+// GFX12: s_and_saveexec_b32 s0, -4.0             ; encoding: [0xf7,0x20,0x80,0xbe]
+
+s_and_saveexec_b32 s0, 0x3f717273
 // GFX12: s_and_saveexec_b32 s0, 0x3f717273       ; encoding: [0xff,0x20,0x80,0xbe,0x73,0x72,0x71,0x3f]
 
 s_and_saveexec_b32 s0, 0xaf123456
