@@ -1841,7 +1841,7 @@ namespace KernelInputOffsets {
 enum Offsets {
   NGROUPS_X = 0,
   NGROUPS_Y = 4,
-  NGROUS_Z = 8,
+  NGROUPS_Z = 8,
   GLOBAL_SIZE_X = 12,
   GLOBAL_SIZE_Y = 16,
   GLOBAL_SIZE_Z = 20,
