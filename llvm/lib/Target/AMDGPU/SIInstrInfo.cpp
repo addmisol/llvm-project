@@ -6544,8 +6544,10 @@ bool SIInstrInfo::isOperandLegal(const MachineInstr &MI, unsigned OpIdx,
   if (MO->isImm()) {
     uint64_t Imm = MO->getImm();
     bool Is64BitFPOp = OpInfo.OperandType == AMDGPU::OPERAND_REG_IMM_FP64;
-    bool Is64BitSignedOp = OpInfo.OperandType == AMDGPU::OPERAND_REG_IMM_INT64;
-    bool Is64BitUnsignedOp = OpInfo.OperandType == AMDGPU::OPERAND_REG_IMM_B64;
+    bool Is64BitSignedOp =
+        OpInfo.OperandType == AMDGPU::OPERAND_REG_IMM_INT64;
+    bool Is64BitUnsignedOp =
+        OpInfo.OperandType == AMDGPU::OPERAND_REG_IMM_B64;
     bool Is64BitOp = Is64BitFPOp || Is64BitSignedOp || Is64BitUnsignedOp ||
                      OpInfo.OperandType == AMDGPU::OPERAND_REG_IMM_V2INT32 ||
                      OpInfo.OperandType == AMDGPU::OPERAND_REG_IMM_V2FP32;
