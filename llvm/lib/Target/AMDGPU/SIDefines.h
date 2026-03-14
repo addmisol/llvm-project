@@ -203,7 +203,6 @@ enum OperandType : unsigned {
   OPERAND_REG_IMM_INT32 = MCOI::OPERAND_FIRST_TARGET,
   OPERAND_REG_IMM_I64, // Signed 64-bit integer operand (uses isInt<32>)
   OPERAND_REG_IMM_U64, // Unsigned 64-bit integer operand (uses isUInt<32>)
-  OPERAND_REG_IMM_B64,   // Unsigned 64-bit integer operand (uses IsUInt<32>)
   OPERAND_REG_IMM_INT16,
   OPERAND_REG_IMM_FP32,
   OPERAND_REG_IMM_FP64,
