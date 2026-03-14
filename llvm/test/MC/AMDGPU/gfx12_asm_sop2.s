@@ -5375,9 +5375,6 @@ s_lshl2_add_u32 s0, s1, 0
 s_lshl2_add_u32 s0, s1, -1
 // GFX12: s_lshl2_add_u32 s0, s1, -1              ; encoding: [0x01,0xc1,0x80,0x87]
 
-s_lshl2_add_u32 s0, s1, -1
-// GFX12: s_lshl2_add_u32 s0, s1, -1              ; encoding: [0x01,0xc1,0x80,0x87]
-
 s_lshl2_add_u32 s0, s1, 0.5
 // GFX12: s_lshl2_add_u32 s0, s1, 0.5             ; encoding: [0x01,0xf0,0x80,0x87]
 
