@@ -1290,7 +1290,7 @@ public:
       assert(Size == 8 || Size == 4);
 
       uint8_t OpType = (Size == 8) ?
-        AMDGPU::OPERAND_REG_IMM_INT64 : AMDGPU::OPERAND_REG_IMM_INT32;
+        AMDGPU::OPERAND_REG_IMM_I64 : AMDGPU::OPERAND_REG_IMM_INT32;
       return isInlineConstant(ImmVal, OpType);
     }
 
@@ -1841,7 +1841,7 @@ namespace KernelInputOffsets {
 enum Offsets {
   NGROUPS_X = 0,
   NGROUPS_Y = 4,
-  NGROUPS_Z = 8,
+  NGROUS_Z = 8,
   GLOBAL_SIZE_X = 12,
   GLOBAL_SIZE_Y = 16,
   GLOBAL_SIZE_Z = 20,
