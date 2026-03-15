@@ -318,12 +318,10 @@ ABIArgInfo AMDGPUABIInfo::classifyArgumentType(QualType Ty, bool Variadic,
         NumRegsLeft -= std::min(NumRegsLeft, NumRegs);
 
         if (Size <= 16)
-          return ABIArgInfo::getDirect(
-              llvm::Type::getInt16Ty(getVMContext()));
+          return ABIArgInfo::getDirect(llvm::Type::getInt16Ty(getVMContext()));
 
         if (Size <= 32)
-          return ABIArgInfo::getDirect(
-              llvm::Type::getInt32Ty(getVMContext()));
+          return ABIArgInfo::getDirect(llvm::Type::getInt32Ty(getVMContext()));
 
         llvm::Type *I32Ty = llvm::Type::getInt32Ty(getVMContext());
         return ABIArgInfo::getDirect(llvm::ArrayType::get(I32Ty, 2));
