@@ -226,8 +226,14 @@ static uint32_t getLit16IntEncoding(uint32_t Val, const MCSubtargetInfo &STI) {
   return getLit32Encoding(Val, STI);
 }
 
+/// Get the encoding for a 64-bit literal value.
+/// \param IsFP - True if this is a floating-point operand.
+/// \param IsSigned - True if this is a signed integer operand (uses IsInt<32>
+///                   to determine if 32-bit literal is valid). Only relevant
+///                   when IsFP is false.
 static uint32_t getLit64Encoding(const MCInstrDesc &Desc, uint64_t Val,
-                                 const MCSubtargetInfo &STI, bool IsFP) {
+                                 const MCSubtargetInfo &STI, bool IsFP,
+                                 bool IsSigned = false) {
   uint32_t IntImm = getIntInlineImmEncoding(static_cast<int64_t>(Val));
   if (IntImm != 0)
     return IntImm;
@@ -269,8 +275,12 @@ static uint32_t getLit64Encoding(const MCInstrDesc &Desc, uint64_t Val,
     return CanUse64BitLiterals && Lo_32(Val) ? 254 : 255;
   }
 
-  return CanUse64BitLiterals && (!isInt<32>(Val) || !isUInt<32>(Val)) ? 254
-                                                                      : 255;
+  // For integer operands, determine if we need 64-bit literal encoding based
+  // on whether the value fits in a sign-extended or zero-extended 32-bit
+  // literal. Signed operands use IsInt<32>, unsigned operands use IsUInt<32>.
+  bool Needs64BitLiteral =
+      IsSigned ? !isInt<32>(static_cast<int64_t>(Val)) : !isUInt<32>(Val);
+  return CanUse64BitLiterals && Needs64BitLiteral ? 254 : 255;
 }
 
 std::optional<uint64_t> AMDGPUMCCodeEmitter::getLitEncoding(
@@ -311,9 +321,16 @@ std::optional<uint64_t> AMDGPUMCCodeEmitter::getLitEncoding(
   case AMDGPU::OPERAND_INLINE_SPLIT_BARRIER_INT32:
     return getLit32Encoding(static_cast<uint32_t>(Imm), STI);
 
-  case AMDGPU::OPERAND_REG_IMM_INT64:
+  case AMDGPU::OPERAND_REG_IMM_I64:
   case AMDGPU::OPERAND_REG_INLINE_C_INT64:
-    return getLit64Encoding(Desc, static_cast<uint64_t>(Imm), STI, false);
+    // Signed 64-bit integer operand - use IsInt<32> for 32-bit literal check
+    return getLit64Encoding(Desc, static_cast<uint64_t>(Imm), STI, false,
+                            /*IsSigned=*/true);
+
+  case AMDGPU::OPERAND_REG_IMM_U64:
+    // Unsigned 64-bit integer operand - use IsUInt<32> for 32-bit literal check
+    return getLit64Encoding(Desc, static_cast<uint64_t>(Imm), STI, false,
+                            /*IsSigned=*/false);
 
   case AMDGPU::OPERAND_REG_INLINE_C_FP64:
   case AMDGPU::OPERAND_REG_INLINE_AC_FP64:
