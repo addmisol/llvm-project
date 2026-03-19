@@ -394,8 +394,8 @@ typedef struct bitfield_small {
 } bitfield_small;
 
 // Bitfields with unsigned backing type (32-bit) - should NOT be coerced
-// The field type is 'unsigned' which is >= 32 bits
-// CHECK-LABEL: define{{.*}} %struct.bitfield_small @return_bitfield_small(i32 %x.coerce)
+// The field type is 'unsigned' which is >= 32 bits, struct layout is {i16, [2 x i8]}
+// CHECK-LABEL: define{{.*}} %struct.bitfield_small @return_bitfield_small(i16 %x.coerce0, [2 x i8] %x.coerce1)
 // CHECK: ret %struct.bitfield_small
 bitfield_small return_bitfield_small(bitfield_small x) {
     return x;
@@ -419,7 +419,8 @@ typedef struct bitfield_with_int {
 } bitfield_with_int;
 
 // Bitfields + full int - should NOT be coerced
-// CHECK-LABEL: define{{.*}} %struct.bitfield_with_int @return_bitfield_with_int(i32 %x.coerce0, i32 %x.coerce1)
+// Bitfield packs into i8, then padding, then i32
+// CHECK-LABEL: define{{.*}} %struct.bitfield_with_int @return_bitfield_with_int(i8 %x.coerce0, i32 %x.coerce1)
 // CHECK: ret %struct.bitfield_with_int
 bitfield_with_int return_bitfield_with_int(bitfield_with_int x) {
     return x;
@@ -587,7 +588,7 @@ typedef struct array_of_nested_floats {
 } array_of_nested_floats;
 
 // Array of nested struct containing float - should NOT be coerced
-// CHECK-LABEL: define{{.*}} %struct.array_of_nested_floats @return_array_of_nested_floats(%struct.inner_char_float %x.coerce)
+// CHECK-LABEL: define{{.*}} %struct.array_of_nested_floats @return_array_of_nested_floats([1 x %struct.inner_char_float] %x.coerce)
 // CHECK: ret %struct.array_of_nested_floats
 array_of_nested_floats return_array_of_nested_floats(array_of_nested_floats x) {
     return x;
