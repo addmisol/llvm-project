@@ -380,3 +380,227 @@ typedef struct char_with_padding {
 char_with_padding return_char_with_padding(char_with_padding x) {
     return x;
 }
+
+// ============================================================================
+// SECTION 6: Additional exotic aggregates
+// ============================================================================
+
+// --- Bitfields ---
+
+typedef struct bitfield_small {
+    unsigned a : 4;
+    unsigned b : 4;
+    unsigned c : 8;
+} bitfield_small;
+
+// Bitfields with unsigned backing type (32-bit) - should NOT be coerced
+// The field type is 'unsigned' which is >= 32 bits
+// CHECK-LABEL: define{{.*}} %struct.bitfield_small @return_bitfield_small(i32 %x.coerce)
+// CHECK: ret %struct.bitfield_small
+bitfield_small return_bitfield_small(bitfield_small x) {
+    return x;
+}
+
+typedef struct bitfield_chars {
+    char a : 4;
+    char b : 4;
+} bitfield_chars;
+
+// Bitfields with char backing type (8-bit) - should be coerced to i16
+// CHECK-LABEL: define{{.*}} i16 @return_bitfield_chars(i16 %x.coerce)
+bitfield_chars return_bitfield_chars(bitfield_chars x) {
+    return x;
+}
+
+typedef struct bitfield_with_int {
+    unsigned a : 4;
+    unsigned b : 4;
+    int i;
+} bitfield_with_int;
+
+// Bitfields + full int - should NOT be coerced
+// CHECK-LABEL: define{{.*}} %struct.bitfield_with_int @return_bitfield_with_int(i32 %x.coerce0, i32 %x.coerce1)
+// CHECK: ret %struct.bitfield_with_int
+bitfield_with_int return_bitfield_with_int(bitfield_with_int x) {
+    return x;
+}
+
+typedef struct bitfield_with_float {
+    unsigned a : 16;
+    float f;
+} bitfield_with_float;
+
+// Bitfield + float - should NOT be coerced
+// CHECK-LABEL: define{{.*}} %struct.bitfield_with_float @return_bitfield_with_float(i16 %x.coerce0, float %x.coerce1)
+// CHECK: ret %struct.bitfield_with_float
+bitfield_with_float return_bitfield_with_float(bitfield_with_float x) {
+    return x;
+}
+
+// --- _Bool fields ---
+
+typedef struct bool_struct {
+    _Bool a;
+    _Bool b;
+    _Bool c;
+    _Bool d;
+} bool_struct;
+
+// 4 bools = 32 bits, all sub-32-bit - should be coerced to i32
+// CHECK-LABEL: define{{.*}} i32 @return_bool_struct(i32 %x.coerce)
+bool_struct return_bool_struct(bool_struct x) {
+    return x;
+}
+
+typedef struct bool_and_float {
+    _Bool b;
+    float f;
+} bool_and_float;
+
+// Bool + float - should NOT be coerced
+// CHECK-LABEL: define{{.*}} %struct.bool_and_float @return_bool_and_float(i8 %x.coerce0, float %x.coerce1)
+// CHECK: ret %struct.bool_and_float
+bool_and_float return_bool_and_float(bool_and_float x) {
+    return x;
+}
+
+typedef struct bool_and_int {
+    _Bool b;
+    int i;
+} bool_and_int;
+
+// Bool + int - should NOT be coerced (int is full-sized)
+// CHECK-LABEL: define{{.*}} %struct.bool_and_int @return_bool_and_int(i8 %x.coerce0, i32 %x.coerce1)
+// CHECK: ret %struct.bool_and_int
+bool_and_int return_bool_and_int(bool_and_int x) {
+    return x;
+}
+
+// --- Half-precision floats ---
+
+typedef struct half_struct {
+    __fp16 a;
+    __fp16 b;
+} half_struct;
+
+// Two halfs = 32 bits, but floats - should NOT be coerced
+// CHECK-LABEL: define{{.*}} %struct.half_struct @return_half_struct(half %x.coerce0, half %x.coerce1)
+// CHECK: ret %struct.half_struct
+half_struct return_half_struct(half_struct x) {
+    return x;
+}
+
+typedef struct half_and_char {
+    __fp16 h;
+    char c;
+} half_and_char;
+
+// Half + char - should NOT be coerced (half is float type)
+// CHECK-LABEL: define{{.*}} %struct.half_and_char @return_half_and_char(half %x.coerce0, i8 %x.coerce1)
+// CHECK: ret %struct.half_and_char
+half_and_char return_half_and_char(half_and_char x) {
+    return x;
+}
+
+typedef struct four_halfs {
+    __fp16 a, b, c, d;
+} four_halfs;
+
+// Four halfs = 64 bits - should NOT be coerced
+// CHECK-LABEL: define{{.*}} %struct.four_halfs @return_four_halfs(half %x.coerce0, half %x.coerce1, half %x.coerce2, half %x.coerce3)
+// CHECK: ret %struct.four_halfs
+four_halfs return_four_halfs(four_halfs x) {
+    return x;
+}
+
+// --- Vectors inside structs ---
+
+typedef int int2 __attribute__((ext_vector_type(2)));
+typedef float float2 __attribute__((ext_vector_type(2)));
+typedef char char4 __attribute__((ext_vector_type(4)));
+
+typedef struct vec_int2_struct {
+    int2 v;
+} vec_int2_struct;
+
+// Single-element vector struct - unwrapped to vector type
+// CHECK-LABEL: define{{.*}} <2 x i32> @return_vec_int2(<2 x i32> %x.coerce)
+vec_int2_struct return_vec_int2(vec_int2_struct x) {
+    return x;
+}
+
+typedef struct vec_float2_struct {
+    float2 v;
+} vec_float2_struct;
+
+// Single-element vector struct - unwrapped to vector type
+// CHECK-LABEL: define{{.*}} <2 x float> @return_vec_float2(<2 x float> %x.coerce)
+vec_float2_struct return_vec_float2(vec_float2_struct x) {
+    return x;
+}
+
+typedef struct vec_char4_struct {
+    char4 v;
+} vec_char4_struct;
+
+// Single-element vector struct - unwrapped to vector type
+// CHECK-LABEL: define{{.*}} <4 x i8> @return_vec_char4(<4 x i8> %x.coerce)
+vec_char4_struct return_vec_char4(vec_char4_struct x) {
+    return x;
+}
+
+typedef struct vec_and_scalar {
+    char4 v;
+    int i;
+} vec_and_scalar;
+
+// Vector + scalar - should NOT be coerced (vector is not a packable integer type)
+// CHECK-LABEL: define{{.*}} %struct.vec_and_scalar @return_vec_and_scalar(<4 x i8> %x.coerce0, i32 %x.coerce1)
+// CHECK: ret %struct.vec_and_scalar
+vec_and_scalar return_vec_and_scalar(vec_and_scalar x) {
+    return x;
+}
+
+// --- Arrays of nested structs ---
+
+typedef struct inner_two_chars {
+    char a, b;
+} inner_two_chars;
+
+typedef struct array_of_nested_chars {
+    inner_two_chars arr[2];
+} array_of_nested_chars;
+
+// Array of 2 nested structs, each with 2 chars = 32 bits total - should be coerced
+// CHECK-LABEL: define{{.*}} i32 @return_array_of_nested_chars(i32 %x.coerce)
+array_of_nested_chars return_array_of_nested_chars(array_of_nested_chars x) {
+    return x;
+}
+
+typedef struct inner_char_float {
+    char c;
+    float f;
+} inner_char_float;
+
+typedef struct array_of_nested_floats {
+    inner_char_float arr[1];
+} array_of_nested_floats;
+
+// Array of nested struct containing float - should NOT be coerced
+// CHECK-LABEL: define{{.*}} %struct.array_of_nested_floats @return_array_of_nested_floats(%struct.inner_char_float %x.coerce)
+// CHECK: ret %struct.array_of_nested_floats
+array_of_nested_floats return_array_of_nested_floats(array_of_nested_floats x) {
+    return x;
+}
+
+typedef struct nested_array_of_shorts {
+    struct {
+        short arr[2];
+    } inner;
+} nested_array_of_shorts;
+
+// Nested struct with array of shorts = 32 bits - should be coerced
+// CHECK-LABEL: define{{.*}} i32 @return_nested_array_of_shorts(i32 %x.coerce)
+nested_array_of_shorts return_nested_array_of_shorts(nested_array_of_shorts x) {
+    return x;
+}
