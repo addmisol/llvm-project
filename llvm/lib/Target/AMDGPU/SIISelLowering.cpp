@@ -16896,6 +16896,179 @@ SDValue SITargetLowering::performAddCombine(SDNode *N,
   return SDValue();
 }
 
+// Try to fold saturating add with dot product pattern into dot instruction
+// with clamp. Matches patterns like:
+// uaddsat(a[0]*b[0] + a[1]*b[1] + a[2]*b[2] + a[3]*b[3], c) -> v_dot4 clamp
+SDValue SITargetLowering::performSatAddCombine(SDNode *N,
+                                               DAGCombinerInfo &DCI) const {
+  SelectionDAG &DAG = DCI.DAG;
+  EVT VT = N->getValueType(0);
+  SDLoc SL(N);
+
+  // Only handle i32 saturating adds
+  if (VT != MVT::i32)
+    return SDValue();
+
+  bool IsSigned = N->getOpcode() == ISD::SADDSAT;
+
+  // Check if we have dot instructions
+  if (!Subtarget->hasDot7Insts() ||
+      (!Subtarget->hasDot1Insts() && !Subtarget->hasDot8Insts()))
+    return SDValue();
+
+  // Pattern: sataddsat(sum_of_products, accumulator)
+  // where sum_of_products = add(add(add(mul0, mul1), mul2), mul3)
+  SDValue SumOp = N->getOperand(0);
+  SDValue Accum = N->getOperand(1);
+
+  // The sum operand should be an add of multiplications
+  if (SumOp.getOpcode() != ISD::ADD)
+    return SDValue();
+
+  SDValue LHS = SumOp.getOperand(0);
+  SDValue RHS = SumOp.getOperand(1);
+
+  // Walk the add tree looking for multiplications
+  if (!isMul(LHS) && !isMul(RHS))
+    return SDValue();
+
+  SDValue TempNode = SumOp;
+  std::optional<bool> MulIsSigned;
+  SmallVector<DotSrc, 4> Src0s;
+  SmallVector<DotSrc, 4> Src1s;
+  SmallVector<SDValue, 4> Src2s;
+
+  // Match the v_dot4 tree, while collecting src nodes.
+  int ChainLength = 0;
+  for (int I = 0; I < 4; I++) {
+    LHS = TempNode.getOperand(0);
+    RHS = TempNode.getOperand(1);
+    auto MulIdx = isMul(LHS) ? 0 : isMul(RHS) ? 1 : -1;
+    if (MulIdx == -1)
+      break;
+    auto Src0 = handleMulOperand(TempNode.getOperand(MulIdx).getOperand(0));
+    if (!Src0)
+      break;
+    auto Src1 = handleMulOperand(TempNode.getOperand(MulIdx).getOperand(1));
+    if (!Src1)
+      break;
+
+    auto IterIsSigned = checkDot4MulSignedness(
+        TempNode.getOperand(MulIdx), *Src0, *Src1,
+        TempNode.getOperand(MulIdx).getOperand(0),
+        TempNode.getOperand(MulIdx).getOperand(1), DAG);
+    if (!IterIsSigned)
+      break;
+    if (!MulIsSigned)
+      MulIsSigned = *IterIsSigned;
+    if (*IterIsSigned != *MulIsSigned)
+      break;
+    placeSources(*Src0, *Src1, Src0s, Src1s, I);
+    auto AddIdx = 1 - MulIdx;
+
+    // Allow the special case where add (add (mul24, 0), mul24) became ->
+    // add (mul24, mul24).
+    if (I == 2 && isMul(TempNode.getOperand(AddIdx))) {
+      Src2s.push_back(TempNode.getOperand(AddIdx));
+      auto Src0 =
+          handleMulOperand(TempNode.getOperand(AddIdx).getOperand(0));
+      if (!Src0)
+        break;
+      auto Src1 =
+          handleMulOperand(TempNode.getOperand(AddIdx).getOperand(1));
+      if (!Src1)
+        break;
+      auto IterIsSigned = checkDot4MulSignedness(
+          TempNode.getOperand(AddIdx), *Src0, *Src1,
+          TempNode.getOperand(AddIdx).getOperand(0),
+          TempNode.getOperand(AddIdx).getOperand(1), DAG);
+      if (!IterIsSigned)
+        break;
+      assert(MulIsSigned);
+      if (*IterIsSigned != *MulIsSigned)
+        break;
+      placeSources(*Src0, *Src1, Src0s, Src1s, I + 1);
+      Src2s.push_back(DAG.getConstant(0, SL, MVT::i32));
+      ChainLength = I + 2;
+      break;
+    }
+
+    TempNode = TempNode.getOperand(AddIdx);
+    Src2s.push_back(TempNode);
+    ChainLength = I + 1;
+    if (TempNode.getNumOperands() < 2)
+      break;
+  }
+
+  // Need at least 4 multiplications for dot4
+  if (ChainLength < 4)
+    return SDValue();
+
+  // Check signedness consistency: signed saturation requires signed muls
+  if (IsSigned != *MulIsSigned)
+    return SDValue();
+
+  SDValue Src0, Src1;
+
+  // If we are just using a single source for both, and have permuted the
+  // bytes consistently, we can just use the sources without permuting
+  // (commutation).
+  bool UseOriginalSrc = false;
+  if (Src0s.size() == 1 && Src1s.size() == 1 &&
+      Src0s.begin()->PermMask == Src1s.begin()->PermMask &&
+      Src0s.begin()->SrcOp.getValueSizeInBits() >= 32 &&
+      Src1s.begin()->SrcOp.getValueSizeInBits() >= 32) {
+    SmallVector<unsigned, 4> SrcBytes;
+    auto Src0Mask = Src0s.begin()->PermMask;
+    SrcBytes.push_back(Src0Mask & 0xFF000000);
+    bool UniqueEntries = true;
+    for (auto I = 1; I < 4; I++) {
+      auto NextByte = Src0Mask & (0xFF << ((3 - I) * 8));
+
+      if (is_contained(SrcBytes, NextByte)) {
+        UniqueEntries = false;
+        break;
+      }
+      SrcBytes.push_back(NextByte);
+    }
+
+    if (UniqueEntries) {
+      UseOriginalSrc = true;
+
+      auto *FirstElt = Src0s.begin();
+      auto FirstEltOp =
+          getDWordFromOffset(DAG, SL, FirstElt->SrcOp, FirstElt->DWordOffset);
+
+      auto *SecondElt = Src1s.begin();
+      auto SecondEltOp = getDWordFromOffset(DAG, SL, SecondElt->SrcOp,
+                                            SecondElt->DWordOffset);
+
+      Src0 = DAG.getBitcastedAnyExtOrTrunc(FirstEltOp, SL,
+                                           MVT::getIntegerVT(32));
+      Src1 = DAG.getBitcastedAnyExtOrTrunc(SecondEltOp, SL,
+                                           MVT::getIntegerVT(32));
+    }
+  }
+
+  if (!UseOriginalSrc) {
+    Src0 = resolveSources(DAG, SL, Src0s, false, true);
+    Src1 = resolveSources(DAG, SL, Src1s, false, true);
+  }
+
+  // Use the second operand of the saturating add as the accumulator
+  SDValue Src2 = DAG.getExtOrTrunc(IsSigned, Accum, SL, MVT::i32);
+
+  SDValue IID = DAG.getTargetConstant(IsSigned ? Intrinsic::amdgcn_sdot4
+                                                : Intrinsic::amdgcn_udot4,
+                                      SL, MVT::i64);
+
+  // Generate dot4 with clamp=1 for saturation
+  auto Dot = DAG.getNode(ISD::INTRINSIC_WO_CHAIN, SL, MVT::i32, IID, Src0,
+                         Src1, Src2, DAG.getTargetConstant(1, SL, MVT::i1));
+
+  return DAG.getExtOrTrunc(IsSigned, Dot, SL, VT);
+}
+
 SDValue SITargetLowering::performPtrAddCombine(SDNode *N,
                                                DAGCombinerInfo &DCI) const {
   SelectionDAG &DAG = DCI.DAG;
@@ -17725,6 +17898,9 @@ SDValue SITargetLowering::PerformDAGCombine(SDNode *N,
   switch (N->getOpcode()) {
   case ISD::ADD:
     return performAddCombine(N, DCI);
+  case ISD::UADDSAT:
+  case ISD::SADDSAT:
+    return performSatAddCombine(N, DCI);
   case ISD::PTRADD:
     return performPtrAddCombine(N, DCI);
   case ISD::SUB:
