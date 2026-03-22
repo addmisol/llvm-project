@@ -486,6 +486,8 @@ public:
             isExpr());
   }
 
+  bool isSSrc_i64() const { return isSSrc_b64(); }
+
   bool isSSrc_f32() const {
     return isSCSrc_b32() || isLiteralImm(MVT::f32) || isExpr();
   }
@@ -613,6 +615,8 @@ public:
   }
 
   bool isVSrc_b64() const { return isVCSrc_f64() || isLiteralImm(MVT::i64); }
+
+  bool isVSrc_i64() const { return isVSrc_b64(); }
 
   bool isVSrcT_b16() const { return isVCSrcT_b16() || isLiteralImm(MVT::i16); }
 
