@@ -6567,12 +6567,17 @@ bool SIInstrInfo::isOperandLegal(const MachineInstr &MI, unsigned OpIdx,
       // If 64-bit literals are supported and the literal will be encoded
       // as full 64 bit we still can use it.
       if (Is64BitSignedOp) {
-        // Signed operand: 32-bit literal is valid if it fits in int32_t
+        // Signed operand: 32-bit literal is valid if it fits in int32_t.
+        // If 64-bit literals are available and the value doesn't fit in a
+        // sign-extended 32-bit literal, we must use the full 64-bit encoding.
         if (!isInt<32>(static_cast<int64_t>(Imm)) &&
             (!ST.has64BitLiterals() || AMDGPU::isValid32BitLiteral(Imm, false)))
           return false;
       } else if (Is64BitUnsignedOp) {
-        // Unsigned operand: 32-bit literal is valid if it fits in uint32_t
+        // Unsigned operand: 32-bit literal is valid if it fits in uint32_t.
+        // Hardware sign-extends 32-bit literals, so we can't use values that
+        // would be sign-extended for unsigned operations even if they fit in
+        // isInt<32>. Use 64-bit literals when available for such values.
         if (!isUInt<32>(Imm) &&
             (!ST.has64BitLiterals() || AMDGPU::isValid32BitLiteral(Imm, false)))
           return false;
