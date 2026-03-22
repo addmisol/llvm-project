@@ -673,6 +673,12 @@ class SOP2_64_32 <string opName, list<dag> pattern=[]> : SOP2_Pseudo <
   "$sdst, $src0, $src1", pattern
 >;
 
+// Signed 64-bit shift: first operand is signed 64-bit, second is 32-bit
+class SOP2_I64_32 <string opName, list<dag> pattern=[]> : SOP2_Pseudo <
+  opName, (outs SReg_64:$sdst), (ins SSrc_i64:$src0, SSrc_b32:$src1),
+  "$sdst, $src0, $src1", pattern
+>;
+
 class SOP2_64_32_32 <string opName, list<dag> pattern=[]> : SOP2_Pseudo <
   opName, (outs SReg_64:$sdst), (ins SSrc_b32:$src0, SSrc_b32:$src1),
   "$sdst, $src0, $src1", pattern
@@ -838,8 +844,8 @@ def S_LSHR_B64 : SOP2_64_32 <"s_lshr_b64",
 def S_ASHR_I32 : SOP2_32 <"s_ashr_i32",
   [(set SReg_32:$sdst, (UniformBinFrag<csra_32> (i32 SSrc_b32:$src0), (i32 SSrc_b32:$src1)))]
 >;
-def S_ASHR_I64 : SOP2_64_32 <"s_ashr_i64",
-  [(set SReg_64:$sdst, (UniformBinFrag<csra_64> (i64 SSrc_b64:$src0), (i32 SSrc_b32:$src1)))]
+def S_ASHR_I64 : SOP2_I64_32 <"s_ashr_i64",
+  [(set SReg_64:$sdst, (UniformBinFrag<csra_64> (i64 SSrc_i64:$src0), (i32 SSrc_b32:$src1)))]
 >;
 } // End Defs = [SCC]
 
@@ -859,7 +865,7 @@ let Defs = [SCC] in {
 def S_BFE_U32 : SOP2_32 <"s_bfe_u32">;
 def S_BFE_I32 : SOP2_32 <"s_bfe_i32">;
 def S_BFE_U64 : SOP2_64_32 <"s_bfe_u64">;
-def S_BFE_I64 : SOP2_64_32 <"s_bfe_i64">;
+def S_BFE_I64 : SOP2_I64_32 <"s_bfe_i64">;
 } // End Defs = [SCC]
 
 def S_CBRANCH_G_FORK : SOP2_Pseudo <
