@@ -22,6 +22,18 @@
 #include "clc/relational/clc_isinf.h"
 #include "clc/relational/clc_isnan.h"
 
+#ifndef __opencl_c_int64
+#include "clc/integer/clc_mul_hi.h"
+#define __CLC_FULL_MUL(A, B, HI, LO)                                           \
+  LO = A * B;                                                                  \
+  HI = __clc_mul_hi(A, B)
+
+#define __CLC_FULL_MAD(A, B, C, HI, LO)                                        \
+  LO = ((A) * (B) + (C));                                                      \
+  HI = __clc_mul_hi(A, B);                                                     \
+  HI += LO < C ? 1U : 0U;
+#endif
+
 #define bitalign(hi, lo, shift) __builtin_elementwise_fshr(hi, lo, shift)
 
 #define __CLC_FLOAT_ONLY
@@ -43,4 +55,10 @@
 
 #include "clc/math/gentype.inc"
 
+#endif
+
+#ifdef cl_khr_fp16
+#define __CLC_HALF_ONLY
+#define __CLC_BODY "clc_sincos_helpers_fp16.inc"
+#include "clc/math/gentype.inc"
 #endif
