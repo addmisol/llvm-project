@@ -2343,8 +2343,8 @@ bool AMDGPUCodeGenPrepareImpl::visitMbcntHi(IntrinsicInst &I) const {
   return tryReplaceWithWorkitemId(I, Wave);
 }
 
-/// Helper to match the dot4 pattern: mul(zext/sext <4 x i8>, zext/sext <4 x i8>)
-/// Returns true if pattern matches, sets A, B to the <4 x i8> sources and
+/// Helper to match the dot4 pattern: mul(zext/sext <4 x i8>, zext/sext <4 x
+/// i8>) Returns true if pattern matches, sets A, B to the <4 x i8> sources and
 /// IsSigned based on whether sext was used.
 static bool matchDot4Pattern(Value *MulOp, Value *&A, Value *&B,
                              bool &IsSigned) {
@@ -2395,9 +2395,9 @@ static bool matchDot4Pattern(Value *MulOp, Value *&A, Value *&B,
   return true;
 }
 
-/// Try to convert vector.reduce.add(mul(zext/sext <4 x i8>, zext/sext <4 x i8>))
-/// to a dot4 intrinsic call (non-saturating case only).
-/// The saturating case is handled by visitSaturatingAdd which starts at the root.
+/// Try to convert vector.reduce.add(mul(zext/sext <4 x i8>, zext/sext <4 x
+/// i8>)) to a dot4 intrinsic call (non-saturating case only). The saturating
+/// case is handled by visitSaturatingAdd which starts at the root.
 bool AMDGPUCodeGenPrepareImpl::visitVectorReduceAdd(IntrinsicInst &I) {
   // Check if we have dot4 instructions available
   if (!ST.hasDot7Insts() || (!ST.hasDot1Insts() && !ST.hasDot8Insts()))
