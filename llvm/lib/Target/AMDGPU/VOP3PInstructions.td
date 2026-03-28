@@ -606,28 +606,6 @@ class SDot2Pat<VOP_Pseudo Inst> : GCNPat <
   let Predicates = Inst.Predicates;
 }
 
-// Saturating unsigned dot2 pattern: uaddsat(a[0]*b[0] + a[1]*b[1], c)
-class UDot2SatPat<VOP_Pseudo Inst> : GCNPat <
-  (uaddsat (add_oneuse (AMDGPUmul_u24_oneuse (srl i32:$src0, (i32 16)),
-                                             (srl i32:$src1, (i32 16))),
-                       (AMDGPUmul_u24_oneuse (and i32:$src0, (i32 65535)),
-                                             (and i32:$src1, (i32 65535)))),
-           i32:$src2),
-  (Inst (i32 8), $src0, (i32 8), $src1, (i32 8), $src2, (i1 1))> {
-  let Predicates = Inst.Predicates;
-}
-
-// Saturating signed dot2 pattern: saddsat(a[0]*b[0] + a[1]*b[1], c)
-class SDot2SatPat<VOP_Pseudo Inst> : GCNPat <
-  (saddsat (add_oneuse (AMDGPUmul_i24_oneuse (sra i32:$src0, (i32 16)),
-                                             (sra i32:$src1, (i32 16))),
-                       (AMDGPUmul_i24_oneuse (sext_inreg i32:$src0, i16),
-                                             (sext_inreg i32:$src1, i16))),
-           i32:$src2),
-  (Inst (i32 8), $src0, (i32 8), $src1, (i32 8), $src2, (i1 1))> {
-  let Predicates = Inst.Predicates;
-}
-
 let IsDOT = 1 in {
 let OtherPredicates = [HasDot2Insts] in {
 defm V_DOT2_I32_I16 : VOP3PInst<"v_dot2_i32_i16",
@@ -753,7 +731,29 @@ defm V_DOT4_F32_BF8_BF8 : VOP3PDOTF8Inst<"v_dot4_f32_bf8_bf8", int_amdgcn_dot4_f
 def : UDot2Pat<V_DOT2_U32_U16>;
 def : SDot2Pat<V_DOT2_I32_I16>;
 
-// Saturating dot2 patterns (with clamp=1)
+// Saturating unsigned dot2 pattern: uaddsat(a[0]*b[0] + a[1]*b[1], c)
+class UDot2SatPat<VOP_Pseudo Inst> : GCNPat <
+  (uaddsat (add_oneuse (AMDGPUmul_u24_oneuse (srl i32:$src0, (i32 16)),
+                                             (srl i32:$src1, (i32 16))),
+                       (AMDGPUmul_u24_oneuse (and i32:$src0, (i32 65535)),
+                                             (and i32:$src1, (i32 65535)))),
+           i32:$src2),
+  (Inst (i32 8), $src0, (i32 8), $src1, (i32 8), $src2, (i1 1))> {
+  let Predicates = Inst.Predicates;
+}
+
+// Saturating signed dot2 pattern: saddsat(a[0]*b[0] + a[1]*b[1], c)
+class SDot2SatPat<VOP_Pseudo Inst> : GCNPat <
+  (saddsat (add_oneuse (AMDGPUmul_i24_oneuse (sra i32:$src0, (i32 16)),
+                                             (sra i32:$src1, (i32 16))),
+                       (AMDGPUmul_i24_oneuse (sext_inreg i32:$src0, i16),
+                                             (sext_inreg i32:$src1, i16))),
+           i32:$src2),
+  (Inst (i32 8), $src0, (i32 8), $src1, (i32 8), $src2, (i1 1))> {
+  let Predicates = Inst.Predicates;
+}
+
+// Saturating dot2 pattern instantiations (with clamp=1)
 def : UDot2SatPat<V_DOT2_U32_U16>;
 def : SDot2SatPat<V_DOT2_I32_I16>;
 
@@ -764,8 +764,7 @@ foreach Type = ["U", "I"] in
                       (add_oneuse lhs, (!cast<PatFrag>("Mul"#Type#"_Elt"#y) i32:$src0, i32:$src1)))),
     (!cast<VOP3P_Pseudo>("V_DOT4_"#Type#"32_"#Type#8) (i32 8), $src0, (i32 8), $src1, (i32 8), $src2, (i1 0))>;
 
-// Saturating dot4 patterns: (u/s)addsat(mul0*mul1 + mul2*mul3 + mul4*mul5 + mul6*mul7, src2)
-// Pattern: sataddsat(add(add(add(mul0, mul1), mul2), mul3), src2) with clamp=1
+// Saturating dot4 patterns: (u/s)addsat(mul0 + mul1 + mul2 + mul3, src2) with clamp=1
 foreach Type = ["U", "I"] in
   let Predicates = !cast<VOP_Pseudo>("V_DOT4_"#Type#"32_"#Type#8).Predicates in
   def : GCNPat <
@@ -1900,16 +1899,20 @@ def F32_FP8BF8_SWMMAC_w64 : VOP3PWMMA_Profile<[v4f32,   i32, v2i32, v4f32], /*_I
 //                       for matrix A, index is i16; Matrix B uses all lanes
 
 def F32_F32_WMMA_w32             : VOP3PWMMA_Profile<[v8f32, v2f32,    v2f32,    v8f32], /*_IsSWMMAC=*/0, /*_IndexType=*/0, /*_IsIU=*/0, /*_IsFP8BF8=*/0,
-                                     /*_Has_ImodOp=*/1, /*_HasMatrixFMT=*/0, /*_HasMatrixScale=*/0, /*_Scale16=*/0, /*_HasMatrixReuse=*/1>;
+                                     /*_Has_ImodOp=*/1, /*_HasMatrixFMT=*/0, /*_HasMatrixScale=*/0, /*_Scale16=*/0, /*_HasMatrixReuse=*/1, /*_IsF4*/0,
+                                     /*_NoABMods*/1>;
 def F32_BF16X32_WMMA_w32         : VOP3PWMMA_Profile<[v8f32, v16bf16,  v16bf16,  v8f32], /*_IsSWMMAC=*/0, /*_IndexType=*/0, /*_IsIU=*/0, /*_IsFP8BF8=*/0,
                                      /*_Has_ImodOp=*/1, /*_HasMatrixFMT=*/0, /*_HasMatrixScale=*/0, /*_Scale16=*/0, /*_HasMatrixReuse=*/1, /*_IsF4*/0,
                                      /*_NoABMods*/1>;
 def F32_F16X32_WMMA_w32          : VOP3PWMMA_Profile<[v8f32, v16f16,   v16f16,   v8f32], /*_IsSWMMAC=*/0, /*_IndexType=*/0, /*_IsIU=*/0, /*_IsFP8BF8=*/0,
-                                     /*_Has_ImodOp=*/1, /*_HasMatrixFMT=*/0, /*_HasMatrixScale=*/0, /*_Scale16=*/0, /*_HasMatrixReuse=*/1>;
+                                     /*_Has_ImodOp=*/1, /*_HasMatrixFMT=*/0, /*_HasMatrixScale=*/0, /*_Scale16=*/0, /*_HasMatrixReuse=*/1, /*_IsF4*/0,
+                                     /*_NoABMods*/1>;
 def F16_F16X32_WMMA_w32          : VOP3PWMMA_Profile<[v8f16, v16f16,   v16f16,   v8f16], /*_IsSWMMAC=*/0, /*_IndexType=*/0, /*_IsIU=*/0, /*_IsFP8BF8=*/0,
-                                     /*_Has_ImodOp=*/1, /*_HasMatrixFMT=*/0, /*_HasMatrixScale=*/0, /*_Scale16=*/0, /*_HasMatrixReuse=*/1>;
+                                     /*_Has_ImodOp=*/1, /*_HasMatrixFMT=*/0, /*_HasMatrixScale=*/0, /*_Scale16=*/0, /*_HasMatrixReuse=*/1, /*_IsF4*/0,
+                                     /*_NoABMods*/1>;
 def BF16_BF16X32_WMMA_w32        : VOP3PWMMA_Profile<[v8bf16, v16bf16, v16bf16, v8bf16], /*_IsSWMMAC=*/0, /*_IndexType=*/0, /*_IsIU=*/0, /*_IsFP8BF8=*/0,
-                                     /*_Has_ImodOp=*/1, /*_HasMatrixFMT=*/0, /*_HasMatrixScale=*/0, /*_Scale16=*/0, /*_HasMatrixReuse=*/1>;
+                                     /*_Has_ImodOp=*/1, /*_HasMatrixFMT=*/0, /*_HasMatrixScale=*/0, /*_Scale16=*/0, /*_HasMatrixReuse=*/1, /*_IsF4*/0,
+                                     /*_NoABMods*/1>;
 def BF16F32_BF16_WMMA_w32        : VOP3PWMMA_Profile<[v8bf16, v16bf16, v16bf16,  v8f32], /*_IsSWMMAC=*/0, /*_IndexType=*/0, /*_IsIU=*/0, /*_IsFP8BF8=*/0,
                                      /*_Has_ImodOp=*/1, /*_HasMatrixFMT=*/0, /*_HasMatrixScale=*/0, /*_Scale16=*/0, /*_HasMatrixReuse=*/1>;
 def F32_FP8BF8X64_WMMA_w32       : VOP3PWMMA_Profile<[v8f32, v8i32,    v8i32,    v8f32], /*_IsSWMMAC=*/0, /*_IndexType=*/0, /*_IsIU=*/0, /*_IsFP8BF8=*/1,
