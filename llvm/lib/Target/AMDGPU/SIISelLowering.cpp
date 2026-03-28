@@ -17012,9 +17012,9 @@ SDValue SITargetLowering::performSatAddCombine(SDNode *N,
         SDValue Src0 = DotOp.getOperand(1);
         SDValue Src1 = DotOp.getOperand(2);
 
-        SDValue NewDot = DAG.getNode(ISD::INTRINSIC_WO_CHAIN, SL, MVT::i32,
-                                     NewIID, Src0, Src1, Accum,
-                                     DAG.getTargetConstant(1, SL, MVT::i1));
+        SDValue NewDot =
+            DAG.getNode(ISD::INTRINSIC_WO_CHAIN, SL, MVT::i32, NewIID, Src0,
+                        Src1, Accum, DAG.getTargetConstant(1, SL, MVT::i1));
         return NewDot;
       }
     }
