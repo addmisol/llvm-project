@@ -6597,30 +6597,18 @@ bool SIInstrInfo::isOperandLegal(const MachineInstr &MI, unsigned OpIdx,
           (!ST.has64BitLiterals() || InstDesc.getSize() != 4))
         return false;
 
-      // For signed operands, we can use sign extended 32-bit literals when the
-      // value fits in a signed 32-bit integer. For unsigned operands, we reject
-      // negative values (when interpreted as 32-bit) since they would be
-      // zero-extended, not sign-extended.
-      // If 64-bit literals are supported and the literal will be encoded
-      // as full 64 bit we still can use it.
+      // For signed operands, we can use sign-extended 32-bit literals when the
+      // value fits in a signed 32-bit integer. For unsigned operands, we can
+      // use zero-extended 32-bit literals when the value fits in an unsigned
+      // 32-bit integer. If the value doesn't fit, we need 64-bit literals.
       if (Is64BitSignedOp) {
-        // Signed operand: 32-bit literal is valid if it fits in int32_t.
-        // If 64-bit literals are available and the value doesn't fit in a
-        // sign-extended 32-bit literal, we must use the full 64-bit encoding.
-        if (!isInt<32>(static_cast<int64_t>(Imm)) &&
-            (!ST.has64BitLiterals() || AMDGPU::isValid32BitLiteral(Imm, false)))
+        if (!isInt<32>(static_cast<int64_t>(Imm)) && !ST.has64BitLiterals())
           return false;
       } else if (Is64BitUnsignedOp) {
-        // Unsigned operand: 32-bit literal is valid if it fits in uint32_t.
-        // Hardware sign-extends 32-bit literals, so we can't use values that
-        // would be sign-extended for unsigned operations even if they fit in
-        // isInt<32>. Use 64-bit literals when available for such values.
-        if (!isUInt<32>(Imm) &&
-            (!ST.has64BitLiterals() || AMDGPU::isValid32BitLiteral(Imm, false)))
+        if (!isUInt<32>(Imm) && !ST.has64BitLiterals())
           return false;
       } else if (!Is64BitFPOp && (int32_t)Imm < 0 &&
-                 (!ST.has64BitLiterals() ||
-                  AMDGPU::isValid32BitLiteral(Imm, false))) {
+                 !ST.has64BitLiterals()) {
         // Other 64-bit operands (V2INT32, V2FP32): be conservative
         return false;
       }
