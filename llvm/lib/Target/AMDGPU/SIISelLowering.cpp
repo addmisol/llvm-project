@@ -5661,6 +5661,13 @@ static unsigned getDPPOpcForWaveReduction(unsigned Opc,
     return AMDGPU::V_OR_B32_dpp;
   case AMDGPU::S_XOR_B32:
     return AMDGPU::V_XOR_B32_dpp;
+  case AMDGPU::V_ADD_F32_e64:
+  case AMDGPU::V_SUB_F32_e64:
+    return AMDGPU::V_ADD_F32_dpp;
+  case AMDGPU::V_MIN_F32_e64:
+    return AMDGPU::V_MIN_F32_dpp;
+  case AMDGPU::V_MAX_F32_e64:
+    return AMDGPU::V_MAX_F32_dpp;
   default:
     llvm_unreachable("unhandled lane op");
   }
@@ -6218,6 +6225,7 @@ static MachineBasicBlock *lowerWaveReduce(MachineInstr &MI,
     } else {
       assert(ST.hasDPP() && "Sub Target does not support DPP Operations");
 
+      bool IsFPOp = isFloatingPointWaveReduceOperation(Opc);
       Register SrcWithIdentity = MRI.createVirtualRegister(SrcRegClass);
       Register IdentityVGPR = MRI.createVirtualRegister(SrcRegClass);
       Register IdentitySGPR = MRI.createVirtualRegister(DstRegClass);
@@ -6250,14 +6258,38 @@ static MachineBasicBlock *lowerWaveReduce(MachineInstr &MI,
       unsigned DPPOpc = getDPPOpcForWaveReduction(Opc, ST);
       auto BuildDPPMachineInstr = [&](Register Dst, Register Src,
                                       unsigned DPPCtrl) {
-        BuildMI(BB, MI, DL, TII->get(DPPOpc), Dst)
-            .addReg(Src)     // old
-            .addReg(Src)     // src0
+        auto DPPInstr =
+            BuildMI(BB, MI, DL, TII->get(DPPOpc), Dst).addReg(Src); // old
+        if (IsFPOp)
+          DPPInstr.addImm(SISrcMods::NONE); // src0 modifier
+        DPPInstr.addReg(Src);               // src0
+        if (IsFPOp)
+          DPPInstr.addImm(SISrcMods::NONE); // src1 modifier
+        DPPInstr
             .addReg(Src)     // src1
             .addImm(DPPCtrl) // dpp-ctrl
             .addImm(0xf)     // row-mask
             .addImm(0xf)     // bank-mask
             .addImm(0);      // bound-control
+      };
+      auto BuildClampInstr = [&](Register Dst, Register Src0, Register Src1) {
+        unsigned ClampOpc = Opc;
+        if (!IsFPOp) {
+          if (Opc == AMDGPU::S_SUB_I32)
+            ClampOpc = AMDGPU::S_ADD_I32;
+          ClampOpc = TII->getVALUOp(ClampOpc);
+        }
+        auto ClampInstr = BuildMI(BB, MI, DL, TII->get(ClampOpc), Dst);
+        if (IsFPOp)
+          ClampInstr.addImm(SISrcMods::NONE); // src0 mod
+        ClampInstr.addReg(Src0);              // src0
+        if (IsFPOp)
+          ClampInstr.addImm(SISrcMods::NONE); // src1 mod
+        ClampInstr.addReg(Src1);              // src1
+        if (TII->hasIntClamp(*ClampInstr) || TII->hasFPClamp(*ClampInstr))
+          ClampInstr.addImm(0); // clamp
+        if (IsFPOp)
+          ClampInstr.addImm(0); // omod
       };
       // DPP reduction
       BuildDPPMachineInstr(DPPRowShr1, SrcWithIdentity,
@@ -6286,17 +6318,7 @@ static MachineBasicBlock *lowerWaveReduce(MachineInstr &MI,
             .addReg(DPPRowShr8) // addr
             .addImm(0x1E0)      // swizzle offset (i16)
             .addImm(0x0);       // gds (i1)
-        auto ClampInstr =
-            BuildMI(BB, MI, DL,
-                    TII->get(TII->getVALUOp(
-                        Opc == AMDGPU::S_SUB_I32
-                            ? static_cast<unsigned>(AMDGPU::S_ADD_I32)
-                            : Opc)),
-                    RowBcast15)
-                .addReg(DPPRowShr8)
-                .addReg(SwizzledValue);
-        if (TII->hasIntClamp(*ClampInstr) || TII->hasFPClamp(*ClampInstr))
-          ClampInstr.addImm(0);
+        BuildClampInstr(RowBcast15, DPPRowShr8, SwizzledValue);
       }
       FinalDPPResult = RowBcast15;
       if (!IsWave32) {
@@ -6344,19 +6366,21 @@ static MachineBasicBlock *lowerWaveReduce(MachineInstr &MI,
               .addReg(PermuteByteOffset) // addr
               .addReg(RowBcast15)        // data
               .addImm(0);                // offset
-          auto ClampInstr =
-              BuildMI(BB, MI, DL,
-                      TII->get(TII->getVALUOp(
-                          Opc == AMDGPU::S_SUB_I32
-                              ? static_cast<unsigned>(AMDGPU::S_ADD_I32)
-                              : Opc)),
-                      RowBcast31)
-                  .addReg(RowBcast15)
-                  .addReg(PermutedValue);
-          if (TII->hasIntClamp(*ClampInstr) || TII->hasFPClamp(*ClampInstr))
-            ClampInstr.addImm(0);
+          BuildClampInstr(RowBcast31, RowBcast15, PermutedValue);
         }
         FinalDPPResult = RowBcast31;
+      }
+      if (Opc == AMDGPU::V_SUB_F32_e64) {
+        Register NegatedValVGPR =
+            MRI.createVirtualRegister(&AMDGPU::VGPR_32RegClass);
+        BuildMI(BB, MI, DL, TII->get(AMDGPU::V_SUB_F32_e64), NegatedValVGPR)
+            .addImm(SISrcMods::NONE)                    // src0 mods
+            .addReg(IdentityVGPR)                       // src0
+            .addImm(SISrcMods::NONE)                    // src1 mods
+            .addReg(IsWave32 ? RowBcast15 : RowBcast31) // src1
+            .addImm(SISrcMods::NONE)                    // clamp
+            .addImm(SISrcMods::NONE);                   // omod
+        FinalDPPResult = NegatedValVGPR;
       }
       // The final reduced value is in the last lane.
       BuildMI(BB, MI, DL, TII->get(AMDGPU::V_READLANE_B32), ReducedValSGPR)
@@ -13392,17 +13416,20 @@ SDValue SITargetLowering::lowerFSQRTF64(SDValue Op, SelectionDAG &DAG) const {
   SDLoc DL(Op);
 
   SDValue X = Op.getOperand(0);
-  SDValue ScaleConstant = DAG.getConstantFP(0x1.0p-767, DL, MVT::f64);
-
-  SDValue Scaling = DAG.getSetCC(DL, MVT::i1, X, ScaleConstant, ISD::SETOLT);
-
   SDValue ZeroInt = DAG.getConstant(0, DL, MVT::i32);
 
-  // Scale up input if it is too small.
-  SDValue ScaleUpFactor = DAG.getConstant(256, DL, MVT::i32);
-  SDValue ScaleUp =
-      DAG.getNode(ISD::SELECT, DL, MVT::i32, Scaling, ScaleUpFactor, ZeroInt);
-  SDValue SqrtX = DAG.getNode(ISD::FLDEXP, DL, MVT::f64, X, ScaleUp, Flags);
+  SDValue SqrtX = X;
+  SDValue Scaling;
+  if (!Flags.hasApproximateFuncs()) {
+    SDValue ScaleConstant = DAG.getConstantFP(0x1.0p-767, DL, MVT::f64);
+    Scaling = DAG.getSetCC(DL, MVT::i1, X, ScaleConstant, ISD::SETOLT);
+
+    // Scale up input if it is too small.
+    SDValue ScaleUpFactor = DAG.getConstant(256, DL, MVT::i32);
+    SDValue ScaleUp =
+        DAG.getNode(ISD::SELECT, DL, MVT::i32, Scaling, ScaleUpFactor, ZeroInt);
+    SqrtX = DAG.getNode(ISD::FLDEXP, DL, MVT::f64, X, ScaleUp, Flags);
+  }
 
   SDValue SqrtY = DAG.getNode(AMDGPUISD::RSQ, DL, MVT::f64, SqrtX);
 
@@ -13424,24 +13451,31 @@ SDValue SITargetLowering::lowerFSQRTF64(SDValue Op, SelectionDAG &DAG) const {
 
   SDValue SqrtS2 = DAG.getNode(ISD::FMA, DL, MVT::f64, SqrtD0, SqrtH1, SqrtS1);
 
-  SDValue NegSqrtS2 = DAG.getNode(ISD::FNEG, DL, MVT::f64, SqrtS2);
-  SDValue SqrtD1 =
-      DAG.getNode(ISD::FMA, DL, MVT::f64, NegSqrtS2, SqrtS2, SqrtX);
+  SDValue SqrtRet = SqrtS2;
+  if (!Flags.hasApproximateFuncs()) {
+    SDValue NegSqrtS2 = DAG.getNode(ISD::FNEG, DL, MVT::f64, SqrtS2);
+    SDValue SqrtD1 =
+        DAG.getNode(ISD::FMA, DL, MVT::f64, NegSqrtS2, SqrtS2, SqrtX);
 
-  SDValue SqrtRet = DAG.getNode(ISD::FMA, DL, MVT::f64, SqrtD1, SqrtH1, SqrtS2);
+    SqrtRet = DAG.getNode(ISD::FMA, DL, MVT::f64, SqrtD1, SqrtH1, SqrtS2);
 
-  SDValue ScaleDownFactor = DAG.getSignedConstant(-128, DL, MVT::i32);
-  SDValue ScaleDown =
-      DAG.getNode(ISD::SELECT, DL, MVT::i32, Scaling, ScaleDownFactor, ZeroInt);
-  SqrtRet = DAG.getNode(ISD::FLDEXP, DL, MVT::f64, SqrtRet, ScaleDown, Flags);
-
-  // TODO: Switch to fcmp oeq 0 for finite only. Can't fully remove this check
-  // with finite only or nsz because rsq(+/-0) = +/-inf
+    SDValue ScaleDownFactor = DAG.getSignedConstant(-128, DL, MVT::i32);
+    SDValue ScaleDown = DAG.getNode(ISD::SELECT, DL, MVT::i32, Scaling,
+                                    ScaleDownFactor, ZeroInt);
+    SqrtRet = DAG.getNode(ISD::FLDEXP, DL, MVT::f64, SqrtRet, ScaleDown, Flags);
+  }
 
   // TODO: Check for DAZ and expand to subnormals
-  SDValue IsZeroOrInf =
-      DAG.getNode(ISD::IS_FPCLASS, DL, MVT::i1, SqrtX,
-                  DAG.getTargetConstant(fcZero | fcPosInf, DL, MVT::i32));
+
+  SDValue IsZeroOrInf;
+  if (Flags.hasNoInfs()) {
+    SDValue Zero = DAG.getConstantFP(0.0, DL, MVT::f64);
+    IsZeroOrInf = DAG.getSetCC(DL, MVT::i1, SqrtX, Zero, ISD::SETOEQ);
+  } else {
+    IsZeroOrInf =
+        DAG.getNode(ISD::IS_FPCLASS, DL, MVT::i1, SqrtX,
+                    DAG.getTargetConstant(fcZero | fcPosInf, DL, MVT::i32));
+  }
 
   // If x is +INF, +0, or -0, use its original value
   return DAG.getNode(ISD::SELECT, DL, MVT::f64, IsZeroOrInf, SqrtX, SqrtRet,
@@ -16869,56 +16903,15 @@ SDValue SITargetLowering::performAddCombine(SDNode *N,
     SDValue Src2 =
         DAG.getExtOrTrunc(*IsSigned, Src2s[ChainLength - 1], SL, MVT::i32);
 
-    // Check if this ADD result is used only by a saturating add (UADDSAT/SADDSAT).
-    // If so, we can fold the saturation into the dot instruction by setting clamp=1
-    // and using the saturation add's other operand as the accumulator.
-    bool Clamp = false;
-    SDValue ClampAccum;
-    SDNode *AddN = N;
-    if (AddN->hasOneUse()) {
-      SDNode *User = *AddN->user_begin();
-      unsigned UserOpc = User->getOpcode();
-      if ((UserOpc == ISD::UADDSAT && !*IsSigned) ||
-          (UserOpc == ISD::SADDSAT && *IsSigned)) {
-        // Found a saturating add user. Get the accumulator (the other operand).
-        SDValue Op0 = User->getOperand(0);
-        SDValue Op1 = User->getOperand(1);
-        // Our add result could be either operand of the saturating add.
-        if (Op0.getNode() == AddN) {
-          ClampAccum = Op1;
-        } else {
-          ClampAccum = Op0;
-        }
-        // Only fold if the original accumulator was 0 (we're replacing it)
-        auto *Src2Const = dyn_cast<ConstantSDNode>(Src2);
-        if (Src2Const && Src2Const->getZExtValue() == 0) {
-          Clamp = true;
-          Src2 = DAG.getExtOrTrunc(*IsSigned, ClampAccum, SL, MVT::i32);
-        }
-      }
-    }
-
     SDValue IID = DAG.getTargetConstant(*IsSigned ? Intrinsic::amdgcn_sdot4
                                                   : Intrinsic::amdgcn_udot4,
                                         SL, MVT::i64);
 
     assert(!VT.isVector());
     auto Dot = DAG.getNode(ISD::INTRINSIC_WO_CHAIN, SL, MVT::i32, IID, Src0,
-                           Src1, Src2,
-                           DAG.getTargetConstant(Clamp ? 1 : 0, SL, MVT::i1));
+                           Src1, Src2, DAG.getTargetConstant(0, SL, MVT::i1));
 
-    SDValue Result = DAG.getExtOrTrunc(*IsSigned, Dot, SL, VT);
-
-    // If we folded the saturation, we need to replace the UADDSAT/SADDSAT node
-    // with our dot result, not just the ADD node.
-    if (Clamp) {
-      SDNode *User = *AddN->user_begin();
-      DCI.CombineTo(User, Result);
-      // Return the result but the caller will see that we've already combined.
-      return Result;
-    }
-
-    return Result;
+    return DAG.getExtOrTrunc(*IsSigned, Dot, SL, VT);
   }
 
   if (VT != MVT::i32 || !DCI.isAfterLegalizeDAG())
@@ -16959,9 +16952,10 @@ SDValue SITargetLowering::performAddCombine(SDNode *N,
   return SDValue();
 }
 
-// Try to fold saturating add with dot product pattern into dot instruction
+// Try to fold saturating add with dot product intrinsic into dot instruction
 // with clamp. Matches patterns like:
-// uaddsat(a[0]*b[0] + a[1]*b[1] + a[2]*b[2] + a[3]*b[3], c) -> v_dot4 clamp
+// uaddsat(dot4(..., 0), c) -> dot4(..., c) clamp
+// uaddsat(dot2(..., 0), c) -> dot2(..., c) clamp
 SDValue SITargetLowering::performSatAddCombine(SDNode *N,
                                                DAGCombinerInfo &DCI) const {
   SelectionDAG &DAG = DCI.DAG;
@@ -16979,28 +16973,23 @@ SDValue SITargetLowering::performSatAddCombine(SDNode *N,
       (!Subtarget->hasDot1Insts() && !Subtarget->hasDot8Insts()))
     return SDValue();
 
-  // First, check if one operand is already a dot intrinsic without clamp.
-  // If performAddCombine already created a dot instruction with clamp=0,
-  // we can fold the saturating add by regenerating with clamp=1.
+  // Check if one operand is a dot intrinsic without clamp.
+  // Pattern: uaddsat(dot(..., 0), accum) -> dot(..., accum) clamp
   SDValue DotOp = N->getOperand(0);
   SDValue Accum = N->getOperand(1);
 
   // Try both operand orders
   for (int Swap = 0; Swap < 2; ++Swap) {
     if (DotOp.getOpcode() == ISD::INTRINSIC_WO_CHAIN) {
-      auto *IIDNode = dyn_cast<ConstantSDNode>(DotOp.getOperand(0));
-      if (!IIDNode) {
-        std::swap(DotOp, Accum);
-        continue;
-      }
+      ConstantSDNode *IIDNode = cast<ConstantSDNode>(DotOp.getOperand(0));
       unsigned IID = IIDNode->getZExtValue();
+
       // Check for udot4/sdot4/udot2/sdot2 intrinsics
       if ((IID == Intrinsic::amdgcn_udot4 && !IsSigned) ||
           (IID == Intrinsic::amdgcn_sdot4 && IsSigned) ||
           (IID == Intrinsic::amdgcn_udot2 && !IsSigned) ||
           (IID == Intrinsic::amdgcn_sdot2 && IsSigned)) {
         // DotOp layout: [IID, Src0, Src1, Src2/Accum, Clamp]
-        // Check if clamp is 0 and accumulator is 0
         SDValue OldAccum = DotOp.getOperand(3);
         SDValue OldClamp = DotOp.getOperand(4);
 
@@ -17023,9 +17012,9 @@ SDValue SITargetLowering::performSatAddCombine(SDNode *N,
         SDValue Src0 = DotOp.getOperand(1);
         SDValue Src1 = DotOp.getOperand(2);
 
-        auto NewDot = DAG.getNode(ISD::INTRINSIC_WO_CHAIN, SL, MVT::i32,
-                                  NewIID, Src0, Src1, Accum,
-                                  DAG.getTargetConstant(1, SL, MVT::i1));
+        SDValue NewDot = DAG.getNode(ISD::INTRINSIC_WO_CHAIN, SL, MVT::i32,
+                                     NewIID, Src0, Src1, Accum,
+                                     DAG.getTargetConstant(1, SL, MVT::i1));
         return NewDot;
       }
     }
@@ -17033,8 +17022,6 @@ SDValue SITargetLowering::performSatAddCombine(SDNode *N,
     std::swap(DotOp, Accum);
   }
 
-  // Note: The pattern for UADDSAT(ADD(...), accum) is handled directly in
-  // performAddCombine which checks for UADDSAT users and sets clamp=1.
   return SDValue();
 }
 
