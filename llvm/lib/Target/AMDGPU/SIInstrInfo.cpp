@@ -6593,23 +6593,26 @@ bool SIInstrInfo::isOperandLegal(const MachineInstr &MI, unsigned OpIdx,
                      OpInfo.OperandType == AMDGPU::OPERAND_REG_IMM_V2FP32;
     if (Is64BitOp &&
         !AMDGPU::isInlinableLiteral64(Imm, ST.hasInv2PiInlineImm())) {
-      if (!AMDGPU::isValid32BitLiteral(Imm, Is64BitFPOp) &&
-          (!ST.has64BitLiterals() || InstDesc.getSize() != 4))
-        return false;
-
       // For signed operands, we can use sign-extended 32-bit literals when the
       // value fits in a signed 32-bit integer. For unsigned operands, we can
       // use zero-extended 32-bit literals when the value fits in an unsigned
       // 32-bit integer. If the value doesn't fit, we need 64-bit literals.
       if (Is64BitSignedOp) {
-        if (!isInt<32>(static_cast<int64_t>(Imm)) && !ST.has64BitLiterals())
+        if (!isInt<32>(static_cast<int64_t>(Imm)) &&
+            (!ST.has64BitLiterals() || InstDesc.getSize() != 4))
           return false;
       } else if (Is64BitUnsignedOp) {
-        if (!isUInt<32>(Imm) && !ST.has64BitLiterals())
+        if (!isUInt<32>(Imm) &&
+            (!ST.has64BitLiterals() || InstDesc.getSize() != 4))
           return false;
-      } else if (!Is64BitFPOp && (int32_t)Imm < 0 && !ST.has64BitLiterals()) {
-        // Other 64-bit operands (V2INT32, V2FP32): be conservative
-        return false;
+      } else {
+        // FP64 and other 64-bit operands (V2INT32, V2FP32)
+        if (!AMDGPU::isValid32BitLiteral(Imm, Is64BitFPOp) &&
+            (!ST.has64BitLiterals() || InstDesc.getSize() != 4))
+          return false;
+        // For non-FP 64-bit operands, be conservative with negative values
+        if (!Is64BitFPOp && (int32_t)Imm < 0 && !ST.has64BitLiterals())
+          return false;
       }
     }
   }
@@ -11391,4 +11394,3 @@ bool SIInstrInfo::isXDL(const MachineInstr &MI) const {
     return true;
 
   return AMDGPU::getMAIIsGFX940XDL(Opcode);
-}
