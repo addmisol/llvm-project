@@ -126,3 +126,47 @@ body: |
     %1:sreg_64 = S_ASHR_I64 %0, 1, implicit-def $scc
     S_ENDPGM 0, implicit %1
 ...
+
+---
+name:            imm64_ashr_int32_const_0x80000000
+body: |
+  bb.0:
+    ; 0x80000000 (2147483648) does NOT fit in int32_t (signed), so it CANNOT be folded.
+    ; S_ASHR_I64 uses signed operands.
+    ; GCN-LABEL: name: imm64_ashr_int32_const_0x80000000
+    ; GCN: [[S_MOV_B:%[0-9]+]]:sreg_64 = S_MOV_B64_IMM_PSEUDO 2147483648
+    ; GCN-NEXT: [[S_ASHR_I64_:%[0-9]+]]:sreg_64 = S_ASHR_I64 [[S_MOV_B]], 1, implicit-def $scc
+    ; GCN-NEXT: S_ENDPGM 0, implicit [[S_ASHR_I64_]]
+    %0:sreg_64 = S_MOV_B64_IMM_PSEUDO 2147483648
+    %1:sreg_64 = S_ASHR_I64 %0, 1, implicit-def $scc
+    S_ENDPGM 0, implicit %1
+...
+
+---
+name:            imm64_ashr_int32_const_0xffffffff80000000
+body: |
+  bb.0:
+    ; 0xFFFFFFFF80000000 (-2147483648) DOES fit in int32_t (signed), so it CAN be folded.
+    ; S_ASHR_I64 uses signed operands.
+    ; GCN-LABEL: name: imm64_ashr_int32_const_0xffffffff80000000
+    ; GCN: [[S_ASHR_I64_:%[0-9]+]]:sreg_64 = S_ASHR_I64 -2147483648, 1, implicit-def $scc
+    ; GCN-NEXT: S_ENDPGM 0, implicit [[S_ASHR_I64_]]
+    %0:sreg_64 = S_MOV_B64_IMM_PSEUDO 18446744071562067968
+    %1:sreg_64 = S_ASHR_I64 %0, 1, implicit-def $scc
+    S_ENDPGM 0, implicit %1
+...
+
+---
+name:            imm64_ashr_int32_const_0x1ffffffff
+body: |
+  bb.0:
+    ; 0x1FFFFFFFF (8589934591) does NOT fit in int32_t (signed), so it CANNOT be folded.
+    ; S_ASHR_I64 uses signed operands.
+    ; GCN-LABEL: name: imm64_ashr_int32_const_0x1ffffffff
+    ; GCN: [[S_MOV_B:%[0-9]+]]:sreg_64 = S_MOV_B64_IMM_PSEUDO 8589934591
+    ; GCN-NEXT: [[S_ASHR_I64_:%[0-9]+]]:sreg_64 = S_ASHR_I64 [[S_MOV_B]], 1, implicit-def $scc
+    ; GCN-NEXT: S_ENDPGM 0, implicit [[S_ASHR_I64_]]
+    %0:sreg_64 = S_MOV_B64_IMM_PSEUDO 8589934591
+    %1:sreg_64 = S_ASHR_I64 %0, 1, implicit-def $scc
+    S_ENDPGM 0, implicit %1
+...
