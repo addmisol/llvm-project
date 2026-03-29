@@ -6607,8 +6607,7 @@ bool SIInstrInfo::isOperandLegal(const MachineInstr &MI, unsigned OpIdx,
       } else if (Is64BitUnsignedOp) {
         if (!isUInt<32>(Imm) && !ST.has64BitLiterals())
           return false;
-      } else if (!Is64BitFPOp && (int32_t)Imm < 0 &&
-                 !ST.has64BitLiterals()) {
+      } else if (!Is64BitFPOp && (int32_t)Imm < 0 && !ST.has64BitLiterals()) {
         // Other 64-bit operands (V2INT32, V2FP32): be conservative
         return false;
       }
