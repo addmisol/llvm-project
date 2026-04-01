@@ -16975,51 +16975,45 @@ SDValue SITargetLowering::performSatAddCombine(SDNode *N,
 
   // Check if one operand is a dot intrinsic without clamp.
   // Pattern: uaddsat(dot(..., 0), accum) -> dot(..., accum) clamp
-  SDValue DotOp = N->getOperand(0);
-  SDValue Accum = N->getOperand(1);
+  for (unsigned I = 0; I < 2; ++I) {
+    SDValue DotOp = N->getOperand(I);
+    SDValue Accum = N->getOperand(1 - I);
 
-  // Try both operand orders
-  for (int Swap = 0; Swap < 2; ++Swap) {
-    if (DotOp.getOpcode() == ISD::INTRINSIC_WO_CHAIN) {
-      ConstantSDNode *IIDNode = cast<ConstantSDNode>(DotOp.getOperand(0));
-      unsigned IID = IIDNode->getZExtValue();
+    if (DotOp.getOpcode() != ISD::INTRINSIC_WO_CHAIN)
+      continue;
 
-      // Check for udot4/sdot4/udot2/sdot2 intrinsics
-      if ((IID == Intrinsic::amdgcn_udot4 && !IsSigned) ||
+    unsigned IID = cast<ConstantSDNode>(DotOp.getOperand(0))->getZExtValue();
+
+    // Check for udot4/sdot4/udot2/sdot2 intrinsics
+    if (!((IID == Intrinsic::amdgcn_udot4 && !IsSigned) ||
           (IID == Intrinsic::amdgcn_sdot4 && IsSigned) ||
           (IID == Intrinsic::amdgcn_udot2 && !IsSigned) ||
-          (IID == Intrinsic::amdgcn_sdot2 && IsSigned)) {
-        // DotOp layout: [IID, Src0, Src1, Src2/Accum, Clamp]
-        SDValue OldAccum = DotOp.getOperand(3);
-        SDValue OldClamp = DotOp.getOperand(4);
+          (IID == Intrinsic::amdgcn_sdot2 && IsSigned)))
+      continue;
 
-        // Check if old clamp is 0 (otherwise already saturating)
-        auto *ClampConst = dyn_cast<ConstantSDNode>(OldClamp);
-        if (!ClampConst || ClampConst->getZExtValue() != 0) {
-          std::swap(DotOp, Accum);
-          continue;
-        }
+    // DotOp layout: [IID, Src0, Src1, Src2/Accum, Clamp]
+    SDValue OldAccum = DotOp.getOperand(3);
+    SDValue OldClamp = DotOp.getOperand(4);
 
-        // Check if old accumulator is 0 (the pattern is dot(..., 0) + accum)
-        auto *AccumConst = dyn_cast<ConstantSDNode>(OldAccum);
-        if (!AccumConst || AccumConst->getZExtValue() != 0) {
-          std::swap(DotOp, Accum);
-          continue;
-        }
+    // Check if old clamp is 0 (otherwise already saturating)
+    auto *ClampConst = dyn_cast<ConstantSDNode>(OldClamp);
+    if (!ClampConst || ClampConst->getZExtValue() != 0)
+      continue;
 
-        // Regenerate the dot with clamp=1 and the new accumulator
-        SDValue NewIID = DAG.getTargetConstant(IID, SL, MVT::i64);
-        SDValue Src0 = DotOp.getOperand(1);
-        SDValue Src1 = DotOp.getOperand(2);
+    // Check if old accumulator is 0 (the pattern is dot(..., 0) + accum)
+    auto *AccumConst = dyn_cast<ConstantSDNode>(OldAccum);
+    if (!AccumConst || AccumConst->getZExtValue() != 0)
+      continue;
 
-        SDValue NewDot =
-            DAG.getNode(ISD::INTRINSIC_WO_CHAIN, SL, MVT::i32, NewIID, Src0,
-                        Src1, Accum, DAG.getTargetConstant(1, SL, MVT::i1));
-        return NewDot;
-      }
-    }
-    // Swap and try again
-    std::swap(DotOp, Accum);
+    // Regenerate the dot with clamp=1 and the new accumulator
+    SDValue NewIID = DAG.getTargetConstant(IID, SL, MVT::i64);
+    SDValue Src0 = DotOp.getOperand(1);
+    SDValue Src1 = DotOp.getOperand(2);
+
+    SDValue NewDot =
+        DAG.getNode(ISD::INTRINSIC_WO_CHAIN, SL, MVT::i32, NewIID, Src0, Src1,
+                    Accum, DAG.getTargetConstant(1, SL, MVT::i1));
+    return NewDot;
   }
 
   return SDValue();
