@@ -2396,22 +2396,11 @@ static bool matchDot4Pattern(Value *MulOp, Value *&A, Value *&B,
 }
 
 /// Try to convert vector.reduce.add(mul(zext/sext <4 x i8>, zext/sext <4 x
-/// i8>)) to a dot4 intrinsic call (non-saturating case only). The saturating
-/// case is handled by visitSaturatingAdd which starts at the root.
+/// i8>)) to a dot4 intrinsic call (non-saturating case only).
 bool AMDGPUCodeGenPrepareImpl::visitVectorReduceAdd(IntrinsicInst &I) {
   // Check if we have dot4 instructions available
   if (!ST.hasDot7Insts() || (!ST.hasDot1Insts() && !ST.hasDot8Insts()))
     return false;
-
-  // Skip if this reduce is used by a saturating add - that case will be
-  // handled by visitSaturatingAdd starting from the root instruction.
-  if (I.hasOneUse()) {
-    if (auto *User = dyn_cast<IntrinsicInst>(*I.user_begin())) {
-      Intrinsic::ID UserIID = User->getIntrinsicID();
-      if (UserIID == Intrinsic::uadd_sat || UserIID == Intrinsic::sadd_sat)
-        return false;
-    }
-  }
 
   Value *A = nullptr, *B = nullptr;
   bool IsSigned = false;
@@ -2424,8 +2413,8 @@ bool AMDGPUCodeGenPrepareImpl::visitVectorReduceAdd(IntrinsicInst &I) {
   IRBuilder<> Builder(&I);
 
   // Bitcast <4 x i8> to i32
-  Value *ASrc = Builder.CreateBitCast(A, I32Ty, "dot4.a");
-  Value *BSrc = Builder.CreateBitCast(B, I32Ty, "dot4.b");
+  Value *ASrc = Builder.CreateBitCast(A, I32Ty);
+  Value *BSrc = Builder.CreateBitCast(B, I32Ty);
 
   // Non-saturating case: accumulator is 0, clamp is false
   Value *Acc = ConstantInt::get(I32Ty, 0);
@@ -2433,10 +2422,9 @@ bool AMDGPUCodeGenPrepareImpl::visitVectorReduceAdd(IntrinsicInst &I) {
 
   Intrinsic::ID DotIID =
       IsSigned ? Intrinsic::amdgcn_sdot4 : Intrinsic::amdgcn_udot4;
-  Function *DotFn =
-      Intrinsic::getOrInsertDeclaration(F.getParent(), DotIID, {});
 
-  Value *Dot = Builder.CreateCall(DotFn, {ASrc, BSrc, Acc, Clamp}, "dot4");
+  Value *Dot = Builder.CreateIntrinsic(DotIID, {}, {ASrc, BSrc, Acc, Clamp},
+                                       nullptr, I.getName());
 
   I.replaceAllUsesWith(Dot);
   DeadVals.push_back(&I);
@@ -2492,18 +2480,17 @@ bool AMDGPUCodeGenPrepareImpl::visitSaturatingAdd(IntrinsicInst &I) {
   IRBuilder<> Builder(&I);
 
   // Bitcast <4 x i8> to i32
-  Value *ASrc = Builder.CreateBitCast(A, I32Ty, "dot4.a");
-  Value *BSrc = Builder.CreateBitCast(B, I32Ty, "dot4.b");
+  Value *ASrc = Builder.CreateBitCast(A, I32Ty);
+  Value *BSrc = Builder.CreateBitCast(B, I32Ty);
 
   // Saturating case: use the accumulator and set clamp to true
   Value *Clamp = ConstantInt::getTrue(Ctx);
 
   Intrinsic::ID DotIID =
       IsSigned ? Intrinsic::amdgcn_sdot4 : Intrinsic::amdgcn_udot4;
-  Function *DotFn =
-      Intrinsic::getOrInsertDeclaration(F.getParent(), DotIID, {});
 
-  Value *Dot = Builder.CreateCall(DotFn, {ASrc, BSrc, Accum, Clamp}, "dot4");
+  Value *Dot = Builder.CreateIntrinsic(DotIID, {}, {ASrc, BSrc, Accum, Clamp},
+                                       nullptr, I.getName());
 
   I.replaceAllUsesWith(Dot);
   DeadVals.push_back(&I);
