@@ -1,4 +1,4 @@
-//===-- SIRegisterInfo.td - SI Register defs ---------------*- tablegen -*-===//
+\//===-- SIRegisterInfo.td - SI Register defs ---------------*- tablegen -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -1369,7 +1369,7 @@ def SSrc_bf16 : SrcRegOrImm9 <SReg_32, "OPERAND_REG_IMM_BF16">;
 def SSrc_f16  : SrcRegOrImm9 <SReg_32, "OPERAND_REG_IMM_FP16">;
 def SSrc_b32  : SrcRegOrImm9 <SReg_32, "OPERAND_REG_IMM_INT32">;
 def SSrc_f32  : SrcRegOrImm9 <SReg_32, "OPERAND_REG_IMM_FP32">;
-def SSrc_b64  : SrcRegOrImm9 <SReg_64_Encodable, "OPERAND_REG_IMM_U64">;
+def SSrc_u64  : SrcRegOrImm9 <SReg_64_Encodable, "OPERAND_REG_IMM_U64">;
 def SSrc_i64  : SrcRegOrImm9 <SReg_64_Encodable, "OPERAND_REG_IMM_I64">;
 
 def SSrcOrLds_b32 : SrcRegOrImm9 <SRegOrLds_32, "OPERAND_REG_IMM_INT32">;
@@ -1413,7 +1413,7 @@ def VSrc_f32    : SrcRegOrImm9 <VS_32, "OPERAND_REG_IMM_FP32">;
 def VSrc_v2b16  : SrcRegOrImm9 <VS_32, "OPERAND_REG_IMM_V2INT16">;
 def VSrc_v2bf16 : SrcRegOrImm9 <VS_32, "OPERAND_REG_IMM_V2BF16">;
 def VSrc_v2f16  : SrcRegOrImm9 <VS_32, "OPERAND_REG_IMM_V2FP16">;
-def VSrc_b64    : SrcRegOrImm9 <VS_64_AlignTarget, "OPERAND_REG_IMM_U64">;
+def VSrc_u64    : SrcRegOrImm9 <VS_64_AlignTarget, "OPERAND_REG_IMM_U64">;
 def VSrc_i64    : SrcRegOrImm9 <VS_64_AlignTarget, "OPERAND_REG_IMM_I64">;
 def VSrc_f64    : SrcRegOrImm9 <VS_64_AlignTarget, "OPERAND_REG_IMM_FP64"> {
   let DecoderMethod = "decodeOperand_VSrc_f64";
