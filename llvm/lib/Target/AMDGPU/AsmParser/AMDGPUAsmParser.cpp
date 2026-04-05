@@ -477,7 +477,7 @@ public:
     return isSSrc_b16();
   }
 
-  bool isSSrc_b64() const {
+  bool isSSrc_u64() const {
     // TODO: Find out how SALU supports extension of 32-bit literals to 64 bits.
     // See isVSrc64().
     return isSCSrc_b64() || isLiteralImm(MVT::i64) ||
@@ -486,7 +486,7 @@ public:
             isExpr());
   }
 
-  bool isSSrc_i64() const { return isSSrc_b64(); }
+  bool isSSrc_i64() const { return isSSrc_u64(); }
 
   bool isSSrc_f32() const {
     return isSCSrc_b32() || isLiteralImm(MVT::f32) || isExpr();
@@ -614,9 +614,9 @@ public:
     return isVCSrc_f32() || isLiteralImm(MVT::i32) || isExpr();
   }
 
-  bool isVSrc_b64() const { return isVCSrc_f64() || isLiteralImm(MVT::i64); }
+  bool isVSrc_u64() const { return isVCSrc_f64() || isLiteralImm(MVT::i64); }
 
-  bool isVSrc_i64() const { return isVSrc_b64(); }
+  bool isVSrc_i64() const { return isVSrc_u64(); }
 
   bool isVSrcT_b16() const { return isVCSrcT_b16() || isLiteralImm(MVT::i16); }
 
@@ -638,7 +638,7 @@ public:
 
   bool isVCSrc_v2b32() const { return isVCSrc_b64(); }
 
-  bool isVSrc_v2b32() const { return isVSrc_b64() || isLiteralImm(MVT::v2i32); }
+  bool isVSrc_v2b32() const { return isVSrc_u64() || isLiteralImm(MVT::v2i32); }
 
   bool isVSrc_f32() const {
     return isVCSrc_f32() || isLiteralImm(MVT::f32) || isExpr();
