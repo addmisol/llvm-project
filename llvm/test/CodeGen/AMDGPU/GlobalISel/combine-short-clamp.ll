@@ -99,9 +99,9 @@ define i16 @v_clamp_i64_i16_invalid_lower(i64 %in) #0 {
 ; GFX678-NEXT:    v_mov_b32_e32 v3, 0
 ; GFX678-NEXT:    v_cmp_lt_i64_e32 vcc, v[0:1], v[2:3]
 ; GFX678-NEXT:    v_mov_b32_e32 v4, 0x8001
-; GFX678-NEXT:    v_mov_b32_e32 v2, 0xffff8000
 ; GFX678-NEXT:    v_cndmask_b32_e32 v0, v4, v0, vcc
 ; GFX678-NEXT:    v_cndmask_b32_e32 v1, 0, v1, vcc
+; GFX678-NEXT:    v_mov_b32_e32 v2, 0xffff8000
 ; GFX678-NEXT:    v_mov_b32_e32 v3, -1
 ; GFX678-NEXT:    v_cmp_gt_i64_e32 vcc, v[0:1], v[2:3]
 ; GFX678-NEXT:    v_mov_b32_e32 v4, 0xffff8000
@@ -115,9 +115,9 @@ define i16 @v_clamp_i64_i16_invalid_lower(i64 %in) #0 {
 ; GFX9-NEXT:    v_mov_b32_e32 v3, 0
 ; GFX9-NEXT:    v_cmp_lt_i64_e32 vcc, v[0:1], v[2:3]
 ; GFX9-NEXT:    v_mov_b32_e32 v4, 0x8001
-; GFX9-NEXT:    v_mov_b32_e32 v2, 0xffff8000
 ; GFX9-NEXT:    v_cndmask_b32_e32 v0, v4, v0, vcc
 ; GFX9-NEXT:    v_cndmask_b32_e32 v1, 0, v1, vcc
+; GFX9-NEXT:    v_mov_b32_e32 v2, 0xffff8000
 ; GFX9-NEXT:    v_mov_b32_e32 v3, -1
 ; GFX9-NEXT:    v_cmp_gt_i64_e32 vcc, v[0:1], v[2:3]
 ; GFX9-NEXT:    v_mov_b32_e32 v4, 0xffff8000
@@ -159,9 +159,9 @@ define i16 @v_clamp_i64_i16_invalid_lower_and_higher(i64 %in) #0 {
 ; GFX678-NEXT:    v_mov_b32_e32 v3, -1
 ; GFX678-NEXT:    v_cmp_gt_i64_e32 vcc, v[0:1], v[2:3]
 ; GFX678-NEXT:    v_mov_b32_e32 v4, 0xffff7fff
-; GFX678-NEXT:    v_mov_b32_e32 v2, 0x8000
 ; GFX678-NEXT:    v_cndmask_b32_e32 v0, v4, v0, vcc
 ; GFX678-NEXT:    v_cndmask_b32_e32 v1, -1, v1, vcc
+; GFX678-NEXT:    v_mov_b32_e32 v2, 0x8000
 ; GFX678-NEXT:    v_mov_b32_e32 v3, 0
 ; GFX678-NEXT:    v_cmp_lt_i64_e32 vcc, v[0:1], v[2:3]
 ; GFX678-NEXT:    v_mov_b32_e32 v4, 0x8000
@@ -175,9 +175,9 @@ define i16 @v_clamp_i64_i16_invalid_lower_and_higher(i64 %in) #0 {
 ; GFX9-NEXT:    v_mov_b32_e32 v3, -1
 ; GFX9-NEXT:    v_cmp_gt_i64_e32 vcc, v[0:1], v[2:3]
 ; GFX9-NEXT:    v_mov_b32_e32 v4, 0xffff7fff
-; GFX9-NEXT:    v_mov_b32_e32 v2, 0x8000
 ; GFX9-NEXT:    v_cndmask_b32_e32 v0, v4, v0, vcc
 ; GFX9-NEXT:    v_cndmask_b32_e32 v1, -1, v1, vcc
+; GFX9-NEXT:    v_mov_b32_e32 v2, 0x8000
 ; GFX9-NEXT:    v_mov_b32_e32 v3, 0
 ; GFX9-NEXT:    v_cmp_lt_i64_e32 vcc, v[0:1], v[2:3]
 ; GFX9-NEXT:    v_mov_b32_e32 v4, 0x8000
