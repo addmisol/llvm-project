@@ -86,17 +86,29 @@ static bool containsOnlyPackableIntegerTypes(const RecordDecl *RD,
   for (const FieldDecl *Field : RD->fields()) {
     QualType FieldTy = Field->getType();
 
+    // For bitfields, check the actual bit-width, not the declared type.
+    // A bitfield like "unsigned a : 4" should be packable even though
+    // 'unsigned' is 32 bits.
+    if (Field->isBitField()) {
+      // Bitfields are always integer types, so they're packable as long as
+      // their width is less than 32 bits.
+      unsigned BitWidth = Field->getBitWidthValue();
+      if (BitWidth >= 32)
+        return false;
+      continue;
+    }
+
     // Recursively check nested structs
-    if (const auto *NestedRD = FieldTy->getAsRecordDecl()) {
+    if (const RecordDecl *NestedRD = FieldTy->getAsRecordDecl()) {
       if (!containsOnlyPackableIntegerTypes(NestedRD, Context))
         return false;
       continue;
     }
 
     // Arrays - check the element type
-    if (const auto *AT = Context.getAsConstantArrayType(FieldTy)) {
+    if (const ConstantArrayType *AT = Context.getAsConstantArrayType(FieldTy)) {
       QualType EltTy = AT->getElementType();
-      if (const auto *NestedRD = EltTy->getAsRecordDecl()) {
+      if (const RecordDecl *NestedRD = EltTy->getAsRecordDecl()) {
         if (!containsOnlyPackableIntegerTypes(NestedRD, Context))
           return false;
         continue;
