@@ -392,10 +392,9 @@ typedef struct bitfield_small {
     unsigned c : 8;
 } bitfield_small;
 
-// Bitfields with unsigned backing type (32-bit) - should NOT be coerced
-// The field type is 'unsigned' which is >= 32 bits, struct layout is {i16, [2 x i8]}
-// CHECK-LABEL: define{{.*}} %struct.bitfield_small @return_bitfield_small(i16 %x.coerce0, [2 x i8] %x.coerce1)
-// CHECK: ret %struct.bitfield_small
+// Bitfields with small bit-widths should be coerced to i32
+// Even though backing type is 'unsigned' (32 bits), the actual bit-widths are 4+4+8=16 bits
+// CHECK-LABEL: define{{.*}} i32 @return_bitfield_small(i32 %x.coerce)
 bitfield_small return_bitfield_small(bitfield_small x) {
     return x;
 }
