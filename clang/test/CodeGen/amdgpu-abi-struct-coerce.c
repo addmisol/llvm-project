@@ -436,6 +436,40 @@ bitfield_with_float return_bitfield_with_float(bitfield_with_float x) {
     return x;
 }
 
+// Bitfields that fill wider ints (up to i64) should also be packed
+typedef struct bitfield_large {
+    unsigned long long a : 40;
+    unsigned long long b : 20;
+} bitfield_large;
+
+// 40 + 20 = 60 bits, fits in 64-bit storage - should be coerced to [2 x i32]
+// CHECK-LABEL: define{{.*}} [2 x i32] @return_bitfield_large([2 x i32] %x.coerce)
+bitfield_large return_bitfield_large(bitfield_large x) {
+    return x;
+}
+
+typedef struct bitfield_exactly_32 {
+    unsigned a : 16;
+    unsigned b : 16;
+} bitfield_exactly_32;
+
+// 16 + 16 = 32 bits exactly - should be coerced to i32
+// CHECK-LABEL: define{{.*}} i32 @return_bitfield_exactly_32(i32 %x.coerce)
+bitfield_exactly_32 return_bitfield_exactly_32(bitfield_exactly_32 x) {
+    return x;
+}
+
+typedef struct bitfield_48 {
+    unsigned long long a : 32;
+    unsigned long long b : 16;
+} bitfield_48;
+
+// 32 + 16 = 48 bits, stored in 64-bit - should be coerced to [2 x i32]
+// CHECK-LABEL: define{{.*}} [2 x i32] @return_bitfield_48([2 x i32] %x.coerce)
+bitfield_48 return_bitfield_48(bitfield_48 x) {
+    return x;
+}
+
 // --- _Bool fields ---
 
 typedef struct bool_struct {
