@@ -2391,30 +2391,28 @@ static bool matchDot4Pattern(Value *MulOp, Value *&A, Value *&B,
   Value *Src0 = Mul->getOperand(0);
   Value *Src1 = Mul->getOperand(1);
 
+  // Check if type is <4 x i8>
+  auto IsV4I8 = [](Type *Ty) -> bool {
+    auto *VTy = dyn_cast<FixedVectorType>(Ty);
+    return VTy && VTy->getNumElements() == 4 &&
+           VTy->getElementType()->isIntegerTy(8);
+  };
+
   // Match zext <4 x i8> or sext <4 x i8>
-  auto matchExtend = [](Value *V, Value *&Src, bool &Signed) -> bool {
-    if (auto *ZExt = dyn_cast<ZExtInst>(V)) {
-      auto *SrcTy = dyn_cast<FixedVectorType>(ZExt->getSrcTy());
-      if (SrcTy && SrcTy->getNumElements() == 4 &&
-          SrcTy->getElementType()->isIntegerTy(8)) {
-        Src = ZExt->getOperand(0);
-        Signed = false;
-        return true;
-      }
-    } else if (auto *SExt = dyn_cast<SExtInst>(V)) {
-      auto *SrcTy = dyn_cast<FixedVectorType>(SExt->getSrcTy());
-      if (SrcTy && SrcTy->getNumElements() == 4 &&
-          SrcTy->getElementType()->isIntegerTy(8)) {
-        Src = SExt->getOperand(0);
-        Signed = true;
-        return true;
-      }
+  auto MatchExtend = [&IsV4I8](Value *V, Value *&Src, bool &Signed) -> bool {
+    if (match(V, m_ZExt(m_Value(Src))) && IsV4I8(Src->getType())) {
+      Signed = false;
+      return true;
+    }
+    if (match(V, m_SExt(m_Value(Src))) && IsV4I8(Src->getType())) {
+      Signed = true;
+      return true;
     }
     return false;
   };
 
   bool Signed0 = false, Signed1 = false;
-  if (!matchExtend(Src0, A, Signed0) || !matchExtend(Src1, B, Signed1))
+  if (!MatchExtend(Src0, A, Signed0) || !MatchExtend(Src1, B, Signed1))
     return false;
 
   // Both operands must have the same signedness
@@ -2453,8 +2451,8 @@ bool AMDGPUCodeGenPrepareImpl::visitVectorReduceAdd(IntrinsicInst &I) {
   Intrinsic::ID DotIID =
       IsSigned ? Intrinsic::amdgcn_sdot4 : Intrinsic::amdgcn_udot4;
 
-  Value *Dot = Builder.CreateIntrinsic(DotIID, {}, {ASrc, BSrc, Acc, Clamp},
-                                       nullptr, I.getName());
+  Value *Dot = Builder.CreateIntrinsic(DotIID, {}, {ASrc, BSrc, Acc, Clamp});
+  Dot->takeName(&I);
 
   I.replaceAllUsesWith(Dot);
   DeadVals.push_back(&I);
@@ -2519,8 +2517,8 @@ bool AMDGPUCodeGenPrepareImpl::visitSaturatingAdd(IntrinsicInst &I) {
   Intrinsic::ID DotIID =
       IsSigned ? Intrinsic::amdgcn_sdot4 : Intrinsic::amdgcn_udot4;
 
-  Value *Dot = Builder.CreateIntrinsic(DotIID, {}, {ASrc, BSrc, Accum, Clamp},
-                                       nullptr, I.getName());
+  Value *Dot = Builder.CreateIntrinsic(DotIID, {}, {ASrc, BSrc, Accum, Clamp});
+  Dot->takeName(&I);
 
   I.replaceAllUsesWith(Dot);
   DeadVals.push_back(&I);
