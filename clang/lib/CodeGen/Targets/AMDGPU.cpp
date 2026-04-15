@@ -216,7 +216,7 @@ ABIArgInfo AMDGPUABIInfo::classifyReturnType(QualType RetTy) const {
       // integers should preserve their original types.
       uint64_t Size = getContext().getTypeSize(RetTy);
       if (Size <= 64) {
-        const auto *RD = RetTy->getAsRecordDecl();
+        const RecordDecl *RD = RetTy->getAsRecordDecl();
         bool ShouldPackToInt =
             RD && containsOnlyPackableIntegerTypes(RD, getContext());
 
@@ -317,7 +317,7 @@ ABIArgInfo AMDGPUABIInfo::classifyArgumentType(QualType Ty, bool Variadic,
     // integers (i32, i64) should preserve their original types.
     uint64_t Size = getContext().getTypeSize(Ty);
     if (Size <= 64) {
-      const auto *RD = Ty->getAsRecordDecl();
+      const RecordDecl *RD = Ty->getAsRecordDecl();
       bool ShouldPackToInt =
           RD && containsOnlyPackableIntegerTypes(RD, getContext());
 
