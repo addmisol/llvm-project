@@ -12056,38 +12056,8 @@ SDValue SITargetLowering::LowerINTRINSIC_VOID(SDValue Op,
     return SDValue(DAG.getMachineNode(AMDGPU::SI_END_CF, DL, MVT::Other,
                                       Op->getOperand(2), Chain),
                    0);
+  case Intrinsic::amdgcn_s_barrier_init:
   case Intrinsic::amdgcn_s_barrier_signal_var: {
-    // Member count of 0 means to re-use a previous member count,
-    // which, if the named barrier is statically chosen, means we can use
-    // the immarg form. Otherwisee, fall through to constructiong M0 as for
-    // s_barrier_init.
-    SDValue CntOp = Op->getOperand(3);
-    auto *CntC = dyn_cast<ConstantSDNode>(CntOp);
-    if (CntC && CntC->isZero()) {
-      SDValue Chain = Op->getOperand(0);
-      SDValue BarOp = Op->getOperand(2);
-      SmallVector<SDValue, 2> Ops;
-
-      std::optional<uint64_t> BarVal;
-      if (auto *C = dyn_cast<ConstantSDNode>(BarOp))
-        BarVal = C->getZExtValue();
-      else if (auto *GA = dyn_cast<GlobalAddressSDNode>(BarOp))
-        if (auto Addr = AMDGPUMachineFunctionInfo::getLDSAbsoluteAddress(
-                *GA->getGlobal()))
-          BarVal = *Addr + GA->getOffset();
-
-      if (BarVal) {
-        unsigned BarID = (*BarVal >> 4) & 0x3F;
-        Ops.push_back(DAG.getTargetConstant(BarID, DL, MVT::i32));
-        Ops.push_back(Chain);
-        auto *NewMI = DAG.getMachineNode(AMDGPU::S_BARRIER_SIGNAL_IMM, DL,
-                                         Op->getVTList(), Ops);
-        return SDValue(NewMI, 0);
-      }
-    }
-    [[fallthrough]];
-  }
-  case Intrinsic::amdgcn_s_barrier_init: {
     // these two intrinsics have two operands: barrier pointer and member count
     SDValue Chain = Op->getOperand(0);
     SmallVector<SDValue, 2> Ops;
@@ -15775,34 +15745,9 @@ SDValue SITargetLowering::performMinMaxCombine(SDNode *N,
   // register pressure for no benefit.
 
   if (supportsMin3Max3(*Subtarget, Opc, VT)) {
-    auto IsTreeWithCombinableChildren = [Opc](SDValue Op) {
-      return Op.getOperand(0).getOpcode() == Opc &&
-             Op.getOperand(1).getOpcode() == Opc &&
-             (Op.getOperand(0).hasOneUse() || Op.getOperand(1).hasOneUse());
-    };
-
-    // Tree reduction: when both operands are the same min/max op, restructure
-    // to keep a 2-op node on top so higher tree levels can still combine.
-    //
-    // max(max(a, b), max(c, d)) -> max(max3(a, b, c), d)
-    // min(min(a, b), min(c, d)) -> min(min3(a, b, c), d)
-    //
-    // Defer when either inner op is a tree node with combinable children.
-    if (Op0.getOpcode() == Opc && Op0.hasOneUse() && Op1.getOpcode() == Opc &&
-        Op1.hasOneUse() && !IsTreeWithCombinableChildren(Op0) &&
-        !IsTreeWithCombinableChildren(Op1)) {
-      SDLoc DL(N);
-      SDValue Inner =
-          DAG.getNode(minMaxOpcToMin3Max3Opc(Opc), DL, VT, Op0.getOperand(0),
-                      Op0.getOperand(1), Op1.getOperand(0));
-      return DAG.getNode(Opc, DL, VT, Inner, Op1.getOperand(1));
-    }
-
     // max(max(a, b), c) -> max3(a, b, c)
     // min(min(a, b), c) -> min3(a, b, c)
-    // Deferred when Op0 is a tree node with combinable children.
-    if (Op0.getOpcode() == Opc && Op0.hasOneUse() &&
-        !IsTreeWithCombinableChildren(Op0)) {
+    if (Op0.getOpcode() == Opc && Op0.hasOneUse()) {
       SDLoc DL(N);
       return DAG.getNode(minMaxOpcToMin3Max3Opc(Opc), DL, N->getValueType(0),
                          Op0.getOperand(0), Op0.getOperand(1), Op1);
@@ -15811,9 +15756,7 @@ SDValue SITargetLowering::performMinMaxCombine(SDNode *N,
     // Try commuted.
     // max(a, max(b, c)) -> max3(a, b, c)
     // min(a, min(b, c)) -> min3(a, b, c)
-    // Deferred when Op1 is a tree node with combinable children.
-    if (Op1.getOpcode() == Opc && Op1.hasOneUse() &&
-        !IsTreeWithCombinableChildren(Op1)) {
+    if (Op1.getOpcode() == Opc && Op1.hasOneUse()) {
       SDLoc DL(N);
       return DAG.getNode(minMaxOpcToMin3Max3Opc(Opc), DL, N->getValueType(0),
                          Op0, Op1.getOperand(0), Op1.getOperand(1));
@@ -17003,73 +16946,6 @@ SDValue SITargetLowering::performAddCombine(SDNode *N,
   return SDValue();
 }
 
-// Try to fold saturating add with dot product intrinsic into dot instruction
-// with clamp. Matches patterns like:
-// uaddsat(dot4(..., 0), c) -> dot4(..., c) clamp
-// uaddsat(dot2(..., 0), c) -> dot2(..., c) clamp
-SDValue SITargetLowering::performSatAddCombine(SDNode *N,
-                                               DAGCombinerInfo &DCI) const {
-  SelectionDAG &DAG = DCI.DAG;
-  EVT VT = N->getValueType(0);
-  SDLoc SL(N);
-
-  // Only handle i32 saturating adds
-  if (VT != MVT::i32)
-    return SDValue();
-
-  bool IsSigned = N->getOpcode() == ISD::SADDSAT;
-
-  // Check if we have dot instructions
-  if (!Subtarget->hasDot7Insts() ||
-      (!Subtarget->hasDot1Insts() && !Subtarget->hasDot8Insts()))
-    return SDValue();
-
-  // Check if one operand is a dot intrinsic without clamp.
-  // Pattern: uaddsat(dot(..., 0), accum) -> dot(..., accum) clamp
-  for (unsigned I = 0; I < 2; ++I) {
-    SDValue DotOp = N->getOperand(I);
-    SDValue Accum = N->getOperand(1 - I);
-
-    if (DotOp.getOpcode() != ISD::INTRINSIC_WO_CHAIN)
-      continue;
-
-    unsigned IID = cast<ConstantSDNode>(DotOp.getOperand(0))->getZExtValue();
-
-    // Check for udot4/sdot4/udot2/sdot2 intrinsics
-    if (!((IID == Intrinsic::amdgcn_udot4 && !IsSigned) ||
-          (IID == Intrinsic::amdgcn_sdot4 && IsSigned) ||
-          (IID == Intrinsic::amdgcn_udot2 && !IsSigned) ||
-          (IID == Intrinsic::amdgcn_sdot2 && IsSigned)))
-      continue;
-
-    // DotOp layout: [IID, Src0, Src1, Src2/Accum, Clamp]
-    SDValue OldAccum = DotOp.getOperand(3);
-    SDValue OldClamp = DotOp.getOperand(4);
-
-    // Check if old clamp is 0 (otherwise already saturating)
-    auto *ClampConst = dyn_cast<ConstantSDNode>(OldClamp);
-    if (!ClampConst || ClampConst->getZExtValue() != 0)
-      continue;
-
-    // Check if old accumulator is 0 (the pattern is dot(..., 0) + accum)
-    auto *AccumConst = dyn_cast<ConstantSDNode>(OldAccum);
-    if (!AccumConst || AccumConst->getZExtValue() != 0)
-      continue;
-
-    // Regenerate the dot with clamp=1 and the new accumulator
-    SDValue NewIID = DAG.getTargetConstant(IID, SL, MVT::i64);
-    SDValue Src0 = DotOp.getOperand(1);
-    SDValue Src1 = DotOp.getOperand(2);
-
-    SDValue NewDot =
-        DAG.getNode(ISD::INTRINSIC_WO_CHAIN, SL, MVT::i32, NewIID, Src0, Src1,
-                    Accum, DAG.getTargetConstant(1, SL, MVT::i1));
-    return NewDot;
-  }
-
-  return SDValue();
-}
-
 SDValue SITargetLowering::performPtrAddCombine(SDNode *N,
                                                DAGCombinerInfo &DCI) const {
   SelectionDAG &DAG = DCI.DAG;
@@ -18120,9 +17996,6 @@ SDValue SITargetLowering::PerformDAGCombine(SDNode *N,
   switch (N->getOpcode()) {
   case ISD::ADD:
     return performAddCombine(N, DCI);
-  case ISD::UADDSAT:
-  case ISD::SADDSAT:
-    return performSatAddCombine(N, DCI);
   case ISD::PTRADD:
     return performPtrAddCombine(N, DCI);
   case ISD::SUB:
