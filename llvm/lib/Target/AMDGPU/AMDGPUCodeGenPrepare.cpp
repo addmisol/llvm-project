@@ -2436,9 +2436,11 @@ static bool matchDot4Pattern(Value *MulOp, Value *&A, Value *&B,
 
   // Match zext <4 x i8> or sext <4 x i8>
   Value *ExtSrc0, *ExtSrc1;
-  if (!match(Src0, m_ZExtOrSExt(m_Value(ExtSrc0))) || !isV4I8(ExtSrc0->getType()))
+  if (!match(Src0, m_ZExtOrSExt(m_Value(ExtSrc0))) ||
+      !isV4I8(ExtSrc0->getType()))
     return false;
-  if (!match(Src1, m_ZExtOrSExt(m_Value(ExtSrc1))) || !isV4I8(ExtSrc1->getType()))
+  if (!match(Src1, m_ZExtOrSExt(m_Value(ExtSrc1))) || 
+      !isV4I8(ExtSrc1->getType()))
     return false;
 
   // Both operands must have the same signedness
