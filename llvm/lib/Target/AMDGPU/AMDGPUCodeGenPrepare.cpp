@@ -2412,52 +2412,43 @@ bool AMDGPUCodeGenPrepareImpl::visitMbcntHi(IntrinsicInst &I) const {
   return tryReplaceWithWorkitemId(I, Wave);
 }
 
+/// Check if type is <4 x i8>.
+static bool isV4I8(Type *Ty) {
+  FixedVectorType *VTy = dyn_cast<FixedVectorType>(Ty);
+  return VTy && VTy->getNumElements() == 4 &&
+         VTy->getElementType()->isIntegerTy(8);
+}
+
 /// Helper to match the dot4 pattern: mul(zext/sext <4 x i8>, zext/sext <4 x
 /// i8>) Returns true if pattern matches, sets A, B to the <4 x i8> sources and
 /// IsSigned based on whether sext was used.
 static bool matchDot4Pattern(Value *MulOp, Value *&A, Value *&B,
                              bool &IsSigned) {
-  auto *Mul = dyn_cast<BinaryOperator>(MulOp);
-  if (!Mul || Mul->getOpcode() != Instruction::Mul)
+  Value *Src0, *Src1;
+  if (!match(MulOp, m_Mul(m_Value(Src0), m_Value(Src1))))
     return false;
 
   // Check that result type is <4 x i32>
-  auto *MulTy = dyn_cast<FixedVectorType>(Mul->getType());
+  FixedVectorType *MulTy = dyn_cast<FixedVectorType>(MulOp->getType());
   if (!MulTy || MulTy->getNumElements() != 4 ||
       !MulTy->getElementType()->isIntegerTy(32))
     return false;
 
-  Value *Src0 = Mul->getOperand(0);
-  Value *Src1 = Mul->getOperand(1);
-
-  // Check if type is <4 x i8>
-  auto IsV4I8 = [](Type *Ty) -> bool {
-    auto *VTy = dyn_cast<FixedVectorType>(Ty);
-    return VTy && VTy->getNumElements() == 4 &&
-           VTy->getElementType()->isIntegerTy(8);
-  };
-
   // Match zext <4 x i8> or sext <4 x i8>
-  auto MatchExtend = [&IsV4I8](Value *V, Value *&Src, bool &Signed) -> bool {
-    if (match(V, m_ZExt(m_Value(Src))) && IsV4I8(Src->getType())) {
-      Signed = false;
-      return true;
-    }
-    if (match(V, m_SExt(m_Value(Src))) && IsV4I8(Src->getType())) {
-      Signed = true;
-      return true;
-    }
+  Value *ExtSrc0, *ExtSrc1;
+  if (!match(Src0, m_ZExtOrSExt(m_Value(ExtSrc0))) || !isV4I8(ExtSrc0->getType()))
     return false;
-  };
-
-  bool Signed0 = false, Signed1 = false;
-  if (!MatchExtend(Src0, A, Signed0) || !MatchExtend(Src1, B, Signed1))
+  if (!match(Src1, m_ZExtOrSExt(m_Value(ExtSrc1))) || !isV4I8(ExtSrc1->getType()))
     return false;
 
   // Both operands must have the same signedness
+  bool Signed0 = isa<SExtInst>(Src0);
+  bool Signed1 = isa<SExtInst>(Src1);
   if (Signed0 != Signed1)
     return false;
 
+  A = ExtSrc0;
+  B = ExtSrc1;
   IsSigned = Signed0;
   return true;
 }
@@ -2518,7 +2509,7 @@ bool AMDGPUCodeGenPrepareImpl::visitSaturatingAdd(IntrinsicInst &I) {
     Value *Op0 = I.getArgOperand(Swap);
     Value *Op1 = I.getArgOperand(1 - Swap);
 
-    if (auto *ReduceInst = dyn_cast<IntrinsicInst>(Op0)) {
+    if (IntrinsicInst *ReduceInst = dyn_cast<IntrinsicInst>(Op0)) {
       if (ReduceInst->getIntrinsicID() == Intrinsic::vector_reduce_add) {
         ReduceOp = Op0;
         Accum = Op1;
@@ -2530,7 +2521,7 @@ bool AMDGPUCodeGenPrepareImpl::visitSaturatingAdd(IntrinsicInst &I) {
   if (!ReduceOp)
     return false;
 
-  auto *ReduceInst = cast<IntrinsicInst>(ReduceOp);
+  IntrinsicInst *ReduceInst = cast<IntrinsicInst>(ReduceOp);
 
   Value *A = nullptr, *B = nullptr;
   bool PatternSigned = false;
