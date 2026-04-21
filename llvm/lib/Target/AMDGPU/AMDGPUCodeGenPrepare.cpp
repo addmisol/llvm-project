@@ -2506,13 +2506,14 @@ bool AMDGPUCodeGenPrepareImpl::visitSaturatingAdd(IntrinsicInst &I) {
   // Look for vector.reduce.add as one of the operands (commutative match)
   Value *Op0 = I.getArgOperand(0);
   Value *Op1 = I.getArgOperand(1);
-  IntrinsicInst *ReduceInst = nullptr;
+  Value *MulOp = nullptr;
   Value *Accum = nullptr;
+  IntrinsicInst *ReduceInst = nullptr;
 
-  if (match(Op0, m_Intrinsic<Intrinsic::vector_reduce_add>(m_Value()))) {
+  if (match(Op0, m_Intrinsic<Intrinsic::vector_reduce_add>(m_Value(MulOp)))) {
     ReduceInst = cast<IntrinsicInst>(Op0);
     Accum = Op1;
-  } else if (match(Op1, m_Intrinsic<Intrinsic::vector_reduce_add>(m_Value()))) {
+  } else if (match(Op1, m_Intrinsic<Intrinsic::vector_reduce_add>(m_Value(MulOp)))) {
     ReduceInst = cast<IntrinsicInst>(Op1);
     Accum = Op0;
   } else {
@@ -2522,7 +2523,7 @@ bool AMDGPUCodeGenPrepareImpl::visitSaturatingAdd(IntrinsicInst &I) {
   Value *A = nullptr, *B = nullptr;
   bool PatternSigned = false;
 
-  if (!matchDot4Pattern(ReduceInst->getArgOperand(0), A, B, PatternSigned))
+  if (!matchDot4Pattern(MulOp, A, B, PatternSigned))
     return false;
 
   // Signedness of the pattern must match the saturating add type
