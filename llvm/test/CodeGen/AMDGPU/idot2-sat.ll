@@ -43,9 +43,9 @@ entry:
   %conv.i = zext <2 x i16> %a to <2 x i32>
   %conv6.i = zext <2 x i16> %b to <2 x i32>
   %mul.i = mul <2 x i32> %conv6.i, %conv.i
-  %0 = extractelement <2 x i32> %mul.i, i64 0
-  %1 = extractelement <2 x i32> %mul.i, i64 1
-  %add.i = add i32 %0, %1
+  %e0 = extractelement <2 x i32> %mul.i, i64 0
+  %e1 = extractelement <2 x i32> %mul.i, i64 1
+  %add.i = add i32 %e0, %e1
   %cond.i.i = tail call i32 @llvm.uadd.sat.i32(i32 %add.i, i32 %c)
   ret i32 %cond.i.i
 }
@@ -82,9 +82,9 @@ entry:
   %conv.i = sext <2 x i16> %a to <2 x i32>
   %conv6.i = sext <2 x i16> %b to <2 x i32>
   %mul.i = mul <2 x i32> %conv6.i, %conv.i
-  %0 = extractelement <2 x i32> %mul.i, i64 0
-  %1 = extractelement <2 x i32> %mul.i, i64 1
-  %add.i = add i32 %0, %1
+  %e0 = extractelement <2 x i32> %mul.i, i64 0
+  %e1 = extractelement <2 x i32> %mul.i, i64 1
+  %add.i = add i32 %e0, %e1
   %cond1.i.i = tail call i32 @llvm.sadd.sat.i32(i32 %add.i, i32 %c)
   ret i32 %cond1.i.i
 }
@@ -124,10 +124,10 @@ entry:
   %conv.i = zext <2 x i16> %a to <2 x i32>
   %conv6.i = zext <2 x i16> %b to <2 x i32>
   %mul.i = mul <2 x i32> %conv6.i, %conv.i
-  %0 = extractelement <2 x i32> %mul.i, i64 0
-  %1 = extractelement <2 x i32> %mul.i, i64 1
-  %add.i = add i32 %1, %c
-  %add8.i = add i32 %add.i, %0
+  %e0 = extractelement <2 x i32> %mul.i, i64 0
+  %e1 = extractelement <2 x i32> %mul.i, i64 1
+  %add.i = add i32 %e1, %c
+  %add8.i = add i32 %add.i, %e0
   ret i32 %add8.i
 }
 
@@ -162,10 +162,10 @@ entry:
   %conv.i = sext <2 x i16> %a to <2 x i32>
   %conv6.i = sext <2 x i16> %b to <2 x i32>
   %mul.i = mul <2 x i32> %conv6.i, %conv.i
-  %0 = extractelement <2 x i32> %mul.i, i64 0
-  %1 = extractelement <2 x i32> %mul.i, i64 1
-  %add.i = add i32 %1, %c
-  %add8.i = add i32 %add.i, %0
+  %e0 = extractelement <2 x i32> %mul.i, i64 0
+  %e1 = extractelement <2 x i32> %mul.i, i64 1
+  %add.i = add i32 %e1, %c
+  %add8.i = add i32 %add.i, %e0
   ret i32 %add8.i
 }
 
@@ -426,6 +426,15 @@ entry:
 }
 
 ; Signed dot4 without saturation using bitcast from i32
+; OPT-LABEL: @sdot4_unsat_bitcast(
+; OPT:         [[A:%.*]] = bitcast i32 %a_packed to <4 x i8>
+; OPT:         [[B:%.*]] = bitcast i32 %b_packed to <4 x i8>
+; OPT:         [[A32:%.*]] = bitcast <4 x i8> [[A]] to i32
+; OPT:         [[B32:%.*]] = bitcast <4 x i8> [[B]] to i32
+; OPT:         [[DOT:%.*]] = call i32 @llvm.amdgcn.sdot4(i32 [[A32]], i32 [[B32]], i32 0, i1 false)
+; OPT:         [[RES:%.*]] = add i32 [[DOT]], %c
+; OPT:         ret i32 [[RES]]
+;
 define i32 @sdot4_unsat_bitcast(i32 %a_packed, i32 %b_packed, i32 %c) {
 ; GFX9-DL-LABEL: sdot4_unsat_bitcast:
 ; GFX9-DL:       ; %bb.0: ; %entry
@@ -527,6 +536,14 @@ entry:
 }
 
 ; Signed dot4 with saturation using bitcast from i32
+; OPT-LABEL: @sdot4_sat_bitcast(
+; OPT:         [[A:%.*]] = bitcast i32 %a_packed to <4 x i8>
+; OPT:         [[B:%.*]] = bitcast i32 %b_packed to <4 x i8>
+; OPT:         [[A32:%.*]] = bitcast <4 x i8> [[A]] to i32
+; OPT:         [[B32:%.*]] = bitcast <4 x i8> [[B]] to i32
+; OPT:         [[DOT:%.*]] = call i32 @llvm.amdgcn.sdot4(i32 [[A32]], i32 [[B32]], i32 %c, i1 true)
+; OPT:         ret i32 [[DOT]]
+;
 define i32 @sdot4_sat_bitcast(i32 %a_packed, i32 %b_packed, i32 %c) {
 ; GFX9-DL-LABEL: sdot4_sat_bitcast:
 ; GFX9-DL:       ; %bb.0: ; %entry
