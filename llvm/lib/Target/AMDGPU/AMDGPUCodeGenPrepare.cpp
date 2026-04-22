@@ -2420,10 +2420,10 @@ static bool isV4I8(Type *Ty) {
 }
 
 /// Helper to match the dot4 pattern: mul(zext/sext <4 x i8>, zext/sext <4 x
-/// i8>) Returns true if pattern matches, sets A, B to the <4 x i8> sources and
-/// IsSigned based on whether sext was used.
+/// i8>) Returns true if pattern matches and signedness matches IsSigned.
+/// Sets A, B to the <4 x i8> sources.
 static bool matchDot4Pattern(Value *MulOp, Value *&A, Value *&B,
-                             bool &IsSigned) {
+                             bool IsSigned) {
   Value *Src0, *Src1;
   if (!match(MulOp, m_Mul(m_Value(Src0), m_Value(Src1))))
     return false;
@@ -2443,15 +2443,14 @@ static bool matchDot4Pattern(Value *MulOp, Value *&A, Value *&B,
       !isV4I8(ExtSrc1->getType()))
     return false;
 
-  // Both operands must have the same signedness
+  // Both operands must have the same signedness and match expected IsSigned
   bool Signed0 = isa<SExtInst>(Src0);
   bool Signed1 = isa<SExtInst>(Src1);
-  if (Signed0 != Signed1)
+  if (Signed0 != Signed1 || Signed0 != IsSigned)
     return false;
 
   A = ExtSrc0;
   B = ExtSrc1;
-  IsSigned = Signed0;
   return true;
 }
 
@@ -2463,10 +2462,14 @@ bool AMDGPUCodeGenPrepareImpl::visitVectorReduceAdd(IntrinsicInst &I) {
     return false;
 
   Value *A = nullptr, *B = nullptr;
-  bool IsSigned = false;
 
-  if (!matchDot4Pattern(I.getArgOperand(0), A, B, IsSigned))
-    return false;
+  // Try unsigned first, then signed
+  bool IsSigned = false;
+  if (!matchDot4Pattern(I.getArgOperand(0), A, B, /*IsSigned=*/false)) {
+    if (!matchDot4Pattern(I.getArgOperand(0), A, B, /*IsSigned=*/true))
+      return false;
+    IsSigned = true;
+  }
 
   LLVMContext &Ctx = I.getContext();
   Type *I32Ty = Type::getInt32Ty(Ctx);
@@ -2521,13 +2524,8 @@ bool AMDGPUCodeGenPrepareImpl::visitSaturatingAdd(IntrinsicInst &I) {
   }
 
   Value *A = nullptr, *B = nullptr;
-  bool PatternSigned = false;
 
-  if (!matchDot4Pattern(MulOp, A, B, PatternSigned))
-    return false;
-
-  // Signedness of the pattern must match the saturating add type
-  if (PatternSigned != IsSigned)
+  if (!matchDot4Pattern(MulOp, A, B, IsSigned))
     return false;
 
   LLVMContext &Ctx = I.getContext();
