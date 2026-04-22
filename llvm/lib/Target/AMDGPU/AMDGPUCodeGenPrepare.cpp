@@ -2491,7 +2491,6 @@ bool AMDGPUCodeGenPrepareImpl::visitVectorReduceAdd(IntrinsicInst &I) {
 
   I.replaceAllUsesWith(Dot);
   DeadVals.push_back(&I);
-
   return true;
 }
 
@@ -2516,7 +2515,8 @@ bool AMDGPUCodeGenPrepareImpl::visitSaturatingAdd(IntrinsicInst &I) {
   if (match(Op0, m_Intrinsic<Intrinsic::vector_reduce_add>(m_Value(MulOp)))) {
     ReduceInst = cast<IntrinsicInst>(Op0);
     Accum = Op1;
-  } else if (match(Op1, m_Intrinsic<Intrinsic::vector_reduce_add>(m_Value(MulOp)))) {
+  } else if (match(Op1,
+                   m_Intrinsic<Intrinsic::vector_reduce_add>(m_Value(MulOp)))) {
     ReduceInst = cast<IntrinsicInst>(Op1);
     Accum = Op0;
   } else {
