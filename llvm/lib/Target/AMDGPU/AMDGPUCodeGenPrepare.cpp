@@ -1131,10 +1131,10 @@ Value *AMDGPUCodeGenPrepareImpl::expandDivRem24Impl(
                        : Builder.CreateFPToUI(FQ, I32Ty);
 
   // fr = fabs(fr);
-  FR = Builder.CreateFAbs(FR, FQ);
+  FR = Builder.CreateUnaryIntrinsic(Intrinsic::fabs, FR, FQ);
 
   // fb = fabs(fb);
-  FB = Builder.CreateFAbs(FB, FQ);
+  FB = Builder.CreateUnaryIntrinsic(Intrinsic::fabs, FB, FQ);
 
   // int cv = fr >= fb;
   Value *CV = Builder.CreateFCmpOGE(FR, FB);
@@ -2434,20 +2434,23 @@ static bool matchDot4Pattern(Value *MulOp, Value *&A, Value *&B,
       !MulTy->getElementType()->isIntegerTy(32))
     return false;
 
-  // Match zext <4 x i8> or sext <4 x i8>
+  // Match zext or sext based on IsSigned
   Value *ExtSrc0, *ExtSrc1;
-  if (!match(Src0, m_ZExtOrSExt(m_Value(ExtSrc0))) ||
-      !isV4I8(ExtSrc0->getType()))
-    return false;
-  if (!match(Src1, m_ZExtOrSExt(m_Value(ExtSrc1))) ||
-      !isV4I8(ExtSrc1->getType()))
-    return false;
-
-  // Both operands must have the same signedness and match expected IsSigned
-  bool Signed0 = isa<SExtInst>(Src0);
-  bool Signed1 = isa<SExtInst>(Src1);
-  if (Signed0 != Signed1 || Signed0 != IsSigned)
-    return false;
+  if (IsSigned) {
+    if (!match(Src0, m_SExt(m_Value(ExtSrc0))) ||
+        !isV4I8(ExtSrc0->getType()))
+      return false;
+    if (!match(Src1, m_SExt(m_Value(ExtSrc1))) ||
+        !isV4I8(ExtSrc1->getType()))
+      return false;
+  } else {
+    if (!match(Src0, m_ZExt(m_Value(ExtSrc0))) ||
+        !isV4I8(ExtSrc0->getType()))
+      return false;
+    if (!match(Src1, m_ZExt(m_Value(ExtSrc1))) ||
+        !isV4I8(ExtSrc1->getType()))
+      return false;
+  }
 
   A = ExtSrc0;
   B = ExtSrc1;
@@ -2491,6 +2494,7 @@ bool AMDGPUCodeGenPrepareImpl::visitVectorReduceAdd(IntrinsicInst &I) {
 
   I.replaceAllUsesWith(Dot);
   DeadVals.push_back(&I);
+
   return true;
 }
 
