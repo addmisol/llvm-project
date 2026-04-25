@@ -49,8 +49,9 @@ define void @test_xor_local_max32bit(ptr addrspace(3) %sp) {
   ret void
 }
 
-define void @test_xor_local_fail_bit33(ptr addrspace(3) %sp) {
-; CHECK-LABEL: define void @test_xor_local_fail_bit33(
+; 0x100000000 tests bit 32 (0-indexed), not bit 33
+define void @test_xor_local_fail_bit32(ptr addrspace(3) %sp) {
+; CHECK-LABEL: define void @test_xor_local_fail_bit32(
 ; CHECK-SAME: ptr addrspace(3) [[SP:%.*]]) {
 ; CHECK-NEXT:    [[GP:%.*]] = addrspacecast ptr addrspace(3) [[SP]] to ptr
 ; CHECK-NEXT:    [[A:%.*]] = ptrtoint ptr [[GP]] to i64
@@ -167,8 +168,13 @@ define void @test_xor_global_max32bit(ptr addrspace(1) %sp) {
   ret void
 }
 
-define void @test_xor_global_bit33(ptr addrspace(1) %sp) {
-; CHECK-LABEL: define void @test_xor_global_bit33(
+; For global address space, all 64 bits are preserved because global addresses
+; are bit-identical in both global and flat address spaces. Global memory regions
+; are architecturally separate from the private/local aperture regions, which use
+; specific high-address ranges that don't overlap with valid global addresses.
+; 0x100000000 tests bit 32 (0-indexed), not bit 33
+define void @test_xor_global_bit32(ptr addrspace(1) %sp) {
+; CHECK-LABEL: define void @test_xor_global_bit32(
 ; CHECK-SAME: ptr addrspace(1) [[SP:%.*]]) {
 ; CHECK-NEXT:    [[GP:%.*]] = addrspacecast ptr addrspace(1) [[SP]] to ptr
 ; CHECK-NEXT:    [[A:%.*]] = ptrtoint ptr [[GP]] to i64
@@ -207,6 +213,68 @@ define void @test_xor_global_high_bits(ptr addrspace(1) %sp) {
   ret void
 }
 
+; Test OR on global (all 64 bits preserved)
+define void @test_or_global(ptr addrspace(1) %sp) {
+; CHECK-LABEL: define void @test_or_global(
+; CHECK-SAME: ptr addrspace(1) [[SP:%.*]]) {
+; CHECK-NEXT:    [[GP:%.*]] = addrspacecast ptr addrspace(1) [[SP]] to ptr
+; CHECK-NEXT:    [[A:%.*]] = ptrtoint ptr [[GP]] to i64
+; CHECK-NEXT:    [[B:%.*]] = or i64 [[A]], 255
+; CHECK-NEXT:    [[GP2:%.*]] = inttoptr i64 [[B]] to ptr
+; CHECK-NEXT:    [[TMP1:%.*]] = addrspacecast ptr [[GP2]] to ptr addrspace(1)
+; CHECK-NEXT:    store i16 0, ptr addrspace(1) [[TMP1]], align 2
+; CHECK-NEXT:    ret void
+;
+  %gp = addrspacecast ptr addrspace(1) %sp to ptr
+  %a = ptrtoint ptr %gp to i64
+  %b = or i64 %a, 255
+  %gp2 = inttoptr i64 %b to ptr
+  store i16 0, ptr %gp2, align 2
+  ret void
+}
+
+; Test AND on global (all 64 bits preserved, even when clearing high bits)
+define void @test_and_global(ptr addrspace(1) %sp) {
+; CHECK-LABEL: define void @test_and_global(
+; CHECK-SAME: ptr addrspace(1) [[SP:%.*]]) {
+; CHECK-NEXT:    [[GP:%.*]] = addrspacecast ptr addrspace(1) [[SP]] to ptr
+; CHECK-NEXT:    [[A:%.*]] = ptrtoint ptr [[GP]] to i64
+; CHECK-NEXT:    [[B:%.*]] = and i64 [[A]], 281474976710655
+; CHECK-NEXT:    [[GP2:%.*]] = inttoptr i64 [[B]] to ptr
+; CHECK-NEXT:    [[TMP1:%.*]] = addrspacecast ptr [[GP2]] to ptr addrspace(1)
+; CHECK-NEXT:    store i16 0, ptr addrspace(1) [[TMP1]], align 2
+; CHECK-NEXT:    ret void
+;
+  %gp = addrspacecast ptr addrspace(1) %sp to ptr
+  %a = ptrtoint ptr %gp to i64
+  ; 0x0000FFFFFFFFFFFF - clears upper 16 bits, should still optimize for global
+  %b = and i64 %a, 281474976710655
+  %gp2 = inttoptr i64 %b to ptr
+  store i16 0, ptr %gp2, align 2
+  ret void
+}
+
+; Test ADD on global - ADD is not currently tracked by InferAddressSpaces
+; so this will NOT be optimized (even though it could be safe for global)
+define void @test_add_global(ptr addrspace(1) %sp) {
+; CHECK-LABEL: define void @test_add_global(
+; CHECK-SAME: ptr addrspace(1) [[SP:%.*]]) {
+; CHECK-NEXT:    [[GP:%.*]] = addrspacecast ptr addrspace(1) [[SP]] to ptr
+; CHECK-NEXT:    [[A:%.*]] = ptrtoint ptr [[GP]] to i64
+; CHECK-NEXT:    [[B:%.*]] = add i64 [[A]], 4294967296
+; CHECK-NEXT:    [[GP2:%.*]] = inttoptr i64 [[B]] to ptr
+; CHECK-NEXT:    store i16 0, ptr [[GP2]], align 2
+; CHECK-NEXT:    ret void
+;
+  %gp = addrspacecast ptr addrspace(1) %sp to ptr
+  %a = ptrtoint ptr %gp to i64
+  ; ADD is not tracked - this will NOT be optimized
+  %b = add i64 %a, 4294967296
+  %gp2 = inttoptr i64 %b to ptr
+  store i16 0, ptr %gp2, align 2
+  ret void
+}
+
 ; Private memory tests - addrspace(5)
 ; Private address space is NOT handled, so these should NOT be optimized
 
@@ -223,6 +291,89 @@ define void @test_xor_private(ptr addrspace(5) %sp) {
   %gp = addrspacecast ptr addrspace(5) %sp to ptr
   %a = ptrtoint ptr %gp to i64
   %b = xor i64 %a, 7
+  %gp2 = inttoptr i64 %b to ptr
+  store i16 0, ptr %gp2, align 2
+  ret void
+}
+
+; Region memory tests - addrspace(2)
+; Region address space is NOT handled, so these should NOT be optimized
+
+define void @test_xor_region(ptr addrspace(2) %sp) {
+; CHECK-LABEL: define void @test_xor_region(
+; CHECK-SAME: ptr addrspace(2) [[SP:%.*]]) {
+; CHECK-NEXT:    [[GP:%.*]] = addrspacecast ptr addrspace(2) [[SP]] to ptr
+; CHECK-NEXT:    [[A:%.*]] = ptrtoint ptr [[GP]] to i64
+; CHECK-NEXT:    [[B:%.*]] = xor i64 [[A]], 7
+; CHECK-NEXT:    [[GP2:%.*]] = inttoptr i64 [[B]] to ptr
+; CHECK-NEXT:    store i16 0, ptr [[GP2]], align 2
+; CHECK-NEXT:    ret void
+;
+  %gp = addrspacecast ptr addrspace(2) %sp to ptr
+  %a = ptrtoint ptr %gp to i64
+  %b = xor i64 %a, 7
+  %gp2 = inttoptr i64 %b to ptr
+  store i16 0, ptr %gp2, align 2
+  ret void
+}
+
+; Constant memory tests - addrspace(4)
+; Constant address space is NOT handled, so these should NOT be optimized
+
+define void @test_xor_constant(ptr addrspace(4) %sp) {
+; CHECK-LABEL: define void @test_xor_constant(
+; CHECK-SAME: ptr addrspace(4) [[SP:%.*]]) {
+; CHECK-NEXT:    [[GP:%.*]] = addrspacecast ptr addrspace(4) [[SP]] to ptr
+; CHECK-NEXT:    [[A:%.*]] = ptrtoint ptr [[GP]] to i64
+; CHECK-NEXT:    [[B:%.*]] = xor i64 [[A]], 7
+; CHECK-NEXT:    [[GP2:%.*]] = inttoptr i64 [[B]] to ptr
+; CHECK-NEXT:    [[VAL:%.*]] = load i16, ptr [[GP2]], align 2
+; CHECK-NEXT:    ret void
+;
+  %gp = addrspacecast ptr addrspace(4) %sp to ptr
+  %a = ptrtoint ptr %gp to i64
+  %b = xor i64 %a, 7
+  %gp2 = inttoptr i64 %b to ptr
+  %val = load i16, ptr %gp2, align 2
+  ret void
+}
+
+; Test ADD operation on local - ADD is not currently tracked by InferAddressSpaces
+; so this will NOT be optimized (limitation of the pass, not the mask)
+define void @test_add_local(ptr addrspace(3) %sp) {
+; CHECK-LABEL: define void @test_add_local(
+; CHECK-SAME: ptr addrspace(3) [[SP:%.*]]) {
+; CHECK-NEXT:    [[GP:%.*]] = addrspacecast ptr addrspace(3) [[SP]] to ptr
+; CHECK-NEXT:    [[A:%.*]] = ptrtoint ptr [[GP]] to i64
+; CHECK-NEXT:    [[B:%.*]] = add i64 [[A]], 64
+; CHECK-NEXT:    [[GP2:%.*]] = inttoptr i64 [[B]] to ptr
+; CHECK-NEXT:    store i16 0, ptr [[GP2]], align 2
+; CHECK-NEXT:    ret void
+;
+  %gp = addrspacecast ptr addrspace(3) %sp to ptr
+  %a = ptrtoint ptr %gp to i64
+  ; ADD is not tracked - this will NOT be optimized
+  %b = add i64 %a, 64
+  %gp2 = inttoptr i64 %b to ptr
+  store i16 0, ptr %gp2, align 2
+  ret void
+}
+
+; Test SUB operation on local - SUB is not currently tracked by InferAddressSpaces
+define void @test_sub_local(ptr addrspace(3) %sp) {
+; CHECK-LABEL: define void @test_sub_local(
+; CHECK-SAME: ptr addrspace(3) [[SP:%.*]]) {
+; CHECK-NEXT:    [[GP:%.*]] = addrspacecast ptr addrspace(3) [[SP]] to ptr
+; CHECK-NEXT:    [[A:%.*]] = ptrtoint ptr [[GP]] to i64
+; CHECK-NEXT:    [[B:%.*]] = sub i64 [[A]], 128
+; CHECK-NEXT:    [[GP2:%.*]] = inttoptr i64 [[B]] to ptr
+; CHECK-NEXT:    store i16 0, ptr [[GP2]], align 2
+; CHECK-NEXT:    ret void
+;
+  %gp = addrspacecast ptr addrspace(3) %sp to ptr
+  %a = ptrtoint ptr %gp to i64
+  ; SUB is not tracked - this will NOT be optimized
+  %b = sub i64 %a, 128
   %gp2 = inttoptr i64 %b to ptr
   store i16 0, ptr %gp2, align 2
   ret void
