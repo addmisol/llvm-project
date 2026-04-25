@@ -215,8 +215,10 @@ public:
 
     unsigned FlatPtrSize = DL.getPointerSizeInBits(AMDGPUAS::FLAT_ADDRESS);
 
-    // For global, addresses in flat and global address spaces are the same.
-    // All 64 bits are preserved.
+    // For global, addresses in flat and global address spaces are the same -
+    // no conversion is needed. Global memory regions are architecturally
+    // separate from the private/local aperture regions (which are 2^32-aligned
+    // and use specific high-address ranges), so all 64 bits are preserved.
     if (DstAS == AMDGPUAS::GLOBAL_ADDRESS)
       return APInt::getAllOnes(FlatPtrSize);
 
