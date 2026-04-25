@@ -2437,18 +2437,14 @@ static bool matchDot4Pattern(Value *MulOp, Value *&A, Value *&B,
   // Match zext or sext based on IsSigned
   Value *ExtSrc0, *ExtSrc1;
   if (IsSigned) {
-    if (!match(Src0, m_SExt(m_Value(ExtSrc0))) ||
-        !isV4I8(ExtSrc0->getType()))
+    if (!match(Src0, m_SExt(m_Value(ExtSrc0))) || !isV4I8(ExtSrc0->getType()))
       return false;
-    if (!match(Src1, m_SExt(m_Value(ExtSrc1))) ||
-        !isV4I8(ExtSrc1->getType()))
+    if (!match(Src1, m_SExt(m_Value(ExtSrc1))) || !isV4I8(ExtSrc1->getType()))
       return false;
   } else {
-    if (!match(Src0, m_ZExt(m_Value(ExtSrc0))) ||
-        !isV4I8(ExtSrc0->getType()))
+    if (!match(Src0, m_ZExt(m_Value(ExtSrc0))) || !isV4I8(ExtSrc0->getType()))
       return false;
-    if (!match(Src1, m_ZExt(m_Value(ExtSrc1))) ||
-        !isV4I8(ExtSrc1->getType()))
+    if (!match(Src1, m_ZExt(m_Value(ExtSrc1))) || !isV4I8(ExtSrc1->getType()))
       return false;
   }
 
