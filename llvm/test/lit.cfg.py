@@ -71,7 +71,7 @@ if config.enable_profcheck:
     config.excludes.append("AMDGPU")
     # TODO targets where profiling may make sense but will be addressed later
     config.excludes.extend(
-        ["Hexagon", "NVPTX", "PowerPC", "RISCV", "SPARC", "WebAssembly"]
+        ["Hexagon", "NVPTX", "PowerPC", "RISCV", "SPARC", "SPIRV", "WebAssembly"]
     )
     # these passes aren't hooked up to the pass pipeline:
     config.excludes.extend(["IRCE", "LoopBoundSplit", "LoopInterchange", "Scalarizer"])
@@ -317,7 +317,6 @@ tools.extend(
         "obj2yaml",
         "yaml-bench",
         "verify-uselistorder",
-        "bugpoint",
         "llc",
         "llvm-symbolizer",
         "opt",
@@ -828,6 +827,8 @@ if config.have_ondisk_cas:
 if "MemoryWithOrigins" in config.llvm_use_sanitizer:
     config.available_features.add("use_msan_with_origins")
 
+if "Undefined" in config.llvm_use_sanitizer:
+    config.available_features.add("ubsan")
 
 # Restrict the size of the on-disk CAS for tests. This allows testing in
 # constrained environments (e.g. small TMPDIR). It also prevents leaving

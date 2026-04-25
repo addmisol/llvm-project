@@ -252,6 +252,8 @@ foreach S = !listconcat(F32VectorSuffixes, F64VectorSuffixes) in {
   def TAN_#S : RuntimeLibcall;
   def TANH_#S : RuntimeLibcall;
   def TGAMMA_#S : RuntimeLibcall;
+  def CDFNORM_#S : RuntimeLibcall;
+  def ROUND_#S : RuntimeLibcall;
 }
 
 foreach S = F64VectorSuffixes in {
@@ -1146,10 +1148,6 @@ foreach lc = LibCalls__atomic in {
   def __#!tolower(!cast<string>(lc)) : RuntimeLibcallImpl<lc>;
 }
 
-// Safe stack.
-def __safestack_pointer_address : RuntimeLibcallImpl<SAFESTACK_POINTER_ADDRESS>;
-def __safestack_unsafe_stack_ptr : RuntimeLibcallImpl<SAFESTACK_UNSAFE_STACK_PTR>;
-
 // Deoptimization
 def __llvm_deoptimize : RuntimeLibcallImpl<DEOPTIMIZE>;
 
@@ -1863,6 +1861,10 @@ def __security_check_cookie : RuntimeLibcallImpl<SECURITY_CHECK_COOKIE>;
 def __security_check_cookie_arm64ec : RuntimeLibcallImpl<SECURITY_CHECK_COOKIE,
   "#__security_check_cookie_arm64ec">;
 
+// Safe stack.
+def __safestack_pointer_address : RuntimeLibcallImpl<SAFESTACK_POINTER_ADDRESS>;
+def __safestack_unsafe_stack_ptr : RuntimeLibcallImpl<SAFESTACK_UNSAFE_STACK_PTR>;
+
 //===----------------------------------------------------------------------===//
 // F128 libm Runtime Libcalls
 //===----------------------------------------------------------------------===//
@@ -2181,6 +2183,7 @@ def AArch64SystemLibrary : SystemRuntimeLibrary<
        SMEABI_LibCalls_PreserveMost_From_X0,
        SMEABI_LibCalls_PreserveMost_From_X1,
        SMEABI_LibCalls_PreserveMost_From_X2,
+       DefaultSafeStackGlobals,
        LibcSafestackPointerAddress)
 >;
 
@@ -2797,7 +2800,8 @@ def HexagonSystemLibrary
     __umoddi3, __divdf3, __muldf3, __divsi3, __subdf3, sqrtf,
     __divdi3, __umodsi3, __moddi3, __modsi3), HexagonLibcalls,
     LibmHasSinCosF32, LibmHasSinCosF64, LibmHasSinCosF128,
-    exp10f, exp10, exp10l_f128, __stack_chk_fail, __stack_chk_guard)>;
+    exp10f, exp10, exp10l_f128, __stack_chk_fail, __stack_chk_guard,
+    DefaultSafeStackGlobals)>;
 
 //===----------------------------------------------------------------------===//
 // Lanai Runtime Libcalls
@@ -3160,6 +3164,7 @@ defset list<RuntimeLibcallImpl> PPCRuntimeLibcalls = {
 }
 
 defset list<RuntimeLibcallImpl> PPC64AIXCallList = {
+  def ___memccpy64 : RuntimeLibcallImpl<MEMCCPY>;
   def ___memcmp64 : RuntimeLibcallImpl<MEMCMP>;
   def ___memmove64 : RuntimeLibcallImpl<MEMMOVE>;
   def ___memset64 : RuntimeLibcallImpl<MEMSET>;
@@ -3171,6 +3176,7 @@ defset list<RuntimeLibcallImpl> PPC64AIXCallList = {
 }
 
 defset list<RuntimeLibcallImpl> PPC32AIXCallList = {
+  def ___memccpy : RuntimeLibcallImpl<MEMCCPY>;
   def ___memcmp : RuntimeLibcallImpl<MEMCMP>;
   def ___memmove : RuntimeLibcallImpl<MEMMOVE>;
   def ___memset : RuntimeLibcallImpl<MEMSET>;
@@ -3306,6 +3312,7 @@ def SPARCSystemLibrary
        has__stack_chk_fail,
        has__stack_smash_handler,
        has___guard_local,
+       DefaultSafeStackGlobals,
        AvailableIf<__stack_chk_guard, isNotOSLinuxAndNotOSOpenBSD>)
 >;
 
@@ -4418,7 +4425,6 @@ defset list<RuntimeLibcallImpl> AMDLIBM_VECFUNCS = {
   def amd_vrd2_exp : RuntimeLibcallImpl<EXP_V2F64>;
   def amd_vrd2_exp10 : RuntimeLibcallImpl<EXP10_V2F64>;
   def amd_vrd2_exp2 : RuntimeLibcallImpl<EXP2_V2F64>;
-  def amd_vrd2_expm1 : RuntimeLibcallImpl<EXPM1_V2F64>;
   def amd_vrd2_log : RuntimeLibcallImpl<LOG_V2F64>;
   def amd_vrd2_log10 : RuntimeLibcallImpl<LOG10_V2F64>;
   def amd_vrd2_log1p : RuntimeLibcallImpl<LOG1P_V2F64>;
@@ -4500,4 +4506,13 @@ defset list<RuntimeLibcallImpl> AMDLIBM_VECFUNCS = {
   def amd_vrs8_sinf : RuntimeLibcallImpl<SIN_V8F32>;
   def amd_vrs8_tanf : RuntimeLibcallImpl<TAN_V8F32>;
   def amd_vrs8_tanhf : RuntimeLibcallImpl<TANH_V8F32>;
+  def amd_vrd2_cdfnorm : RuntimeLibcallImpl<CDFNORM_V2F64>;
+  def amd_vrd4_cdfnorm : RuntimeLibcallImpl<CDFNORM_V4F64>;
+  def amd_vrd8_cdfnorm : RuntimeLibcallImpl<CDFNORM_V8F64>;
+  def amd_vrs4_roundf : RuntimeLibcallImpl<ROUND_V4F32>;
+  def amd_vrs8_roundf : RuntimeLibcallImpl<ROUND_V8F32>;
+  def amd_vrs16_roundf : RuntimeLibcallImpl<ROUND_V16F32>;
+  def amd_vrd2_round : RuntimeLibcallImpl<ROUND_V2F64>;
+  def amd_vrd4_round : RuntimeLibcallImpl<ROUND_V4F64>;
+  def amd_vrd8_round : RuntimeLibcallImpl<ROUND_V8F64>;
 }

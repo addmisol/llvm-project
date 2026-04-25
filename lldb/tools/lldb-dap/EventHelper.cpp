@@ -215,7 +215,8 @@ static void SendStoppedEvent(DAP &dap, lldb::SBThread &thread, bool on_entry,
     } break;
     case lldb::eStopReasonWatchpoint: {
       body.reason = protocol::eStoppedReasonDataBreakpoint;
-      lldb::break_id_t bp_id = thread.GetStopReasonDataAtIndex(0);
+      lldb::break_id_t bp_id =
+          ApplyWatchpointMask(thread.GetStopReasonDataAtIndex(0));
       body.hitBreakpointIds.push_back(bp_id);
       body.text = llvm::formatv("data breakpoint {0}", bp_id).str();
     } break;
@@ -627,7 +628,7 @@ static void HandleDiagnosticEvent(const lldb::SBEvent &event, Log &log) {
     std::string type = GetStringValue(data.GetValueForKey("type"));
     std::string message = GetStringValue(data.GetValueForKey("message"));
     dap_instance->SendOutput(OutputType::Important,
-                             llvm::formatv("{0}: {1}", type, message).str());
+                             llvm::formatv("{0}: {1}\n", type, message).str());
   }
 }
 
