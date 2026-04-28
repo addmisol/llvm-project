@@ -276,7 +276,7 @@ define void @test_add_global(ptr addrspace(1) %sp) {
 }
 
 ; Private memory tests - addrspace(5)
-; Private address space is NOT handled, so these should NOT be optimized
+; Private aperture is 2^32-aligned, lower 32 bits are safe to modify
 
 define void @test_xor_private(ptr addrspace(5) %sp) {
 ; CHECK-LABEL: define void @test_xor_private(
@@ -285,12 +285,52 @@ define void @test_xor_private(ptr addrspace(5) %sp) {
 ; CHECK-NEXT:    [[A:%.*]] = ptrtoint ptr [[GP]] to i64
 ; CHECK-NEXT:    [[B:%.*]] = xor i64 [[A]], 7
 ; CHECK-NEXT:    [[GP2:%.*]] = inttoptr i64 [[B]] to ptr
-; CHECK-NEXT:    store i16 0, ptr [[GP2]], align 2
+; CHECK-NEXT:    [[TMP1:%.*]] = addrspacecast ptr [[GP2]] to ptr addrspace(5)
+; CHECK-NEXT:    store i16 0, ptr addrspace(5) [[TMP1]], align 2
 ; CHECK-NEXT:    ret void
 ;
   %gp = addrspacecast ptr addrspace(5) %sp to ptr
   %a = ptrtoint ptr %gp to i64
   %b = xor i64 %a, 7
+  %gp2 = inttoptr i64 %b to ptr
+  store i16 0, ptr %gp2, align 2
+  ret void
+}
+
+define void @test_xor_private_max32bit(ptr addrspace(5) %sp) {
+; CHECK-LABEL: define void @test_xor_private_max32bit(
+; CHECK-SAME: ptr addrspace(5) [[SP:%.*]]) {
+; CHECK-NEXT:    [[GP:%.*]] = addrspacecast ptr addrspace(5) [[SP]] to ptr
+; CHECK-NEXT:    [[A:%.*]] = ptrtoint ptr [[GP]] to i64
+; CHECK-NEXT:    [[B:%.*]] = xor i64 [[A]], 4294967295
+; CHECK-NEXT:    [[GP2:%.*]] = inttoptr i64 [[B]] to ptr
+; CHECK-NEXT:    [[TMP1:%.*]] = addrspacecast ptr [[GP2]] to ptr addrspace(5)
+; CHECK-NEXT:    store i16 0, ptr addrspace(5) [[TMP1]], align 2
+; CHECK-NEXT:    ret void
+;
+  %gp = addrspacecast ptr addrspace(5) %sp to ptr
+  %a = ptrtoint ptr %gp to i64
+  ; 0xFFFFFFFF - maximum 32-bit value, should still be optimized
+  %b = xor i64 %a, 4294967295
+  %gp2 = inttoptr i64 %b to ptr
+  store i16 0, ptr %gp2, align 2
+  ret void
+}
+
+define void @test_xor_private_fail_bit32(ptr addrspace(5) %sp) {
+; CHECK-LABEL: define void @test_xor_private_fail_bit32(
+; CHECK-SAME: ptr addrspace(5) [[SP:%.*]]) {
+; CHECK-NEXT:    [[GP:%.*]] = addrspacecast ptr addrspace(5) [[SP]] to ptr
+; CHECK-NEXT:    [[A:%.*]] = ptrtoint ptr [[GP]] to i64
+; CHECK-NEXT:    [[B:%.*]] = xor i64 [[A]], 4294967296
+; CHECK-NEXT:    [[GP2:%.*]] = inttoptr i64 [[B]] to ptr
+; CHECK-NEXT:    store i16 0, ptr [[GP2]], align 2
+; CHECK-NEXT:    ret void
+;
+  %gp = addrspacecast ptr addrspace(5) %sp to ptr
+  %a = ptrtoint ptr %gp to i64
+  ; 0x100000000 - bit 32 set, should NOT be optimized
+  %b = xor i64 %a, 4294967296
   %gp2 = inttoptr i64 %b to ptr
   store i16 0, ptr %gp2, align 2
   ret void
@@ -318,7 +358,7 @@ define void @test_xor_region(ptr addrspace(2) %sp) {
 }
 
 ; Constant memory tests - addrspace(4)
-; Constant address space is NOT handled, so these should NOT be optimized
+; Constant address space uses same addresses as global, all 64 bits preserved
 
 define void @test_xor_constant(ptr addrspace(4) %sp) {
 ; CHECK-LABEL: define void @test_xor_constant(
@@ -327,12 +367,33 @@ define void @test_xor_constant(ptr addrspace(4) %sp) {
 ; CHECK-NEXT:    [[A:%.*]] = ptrtoint ptr [[GP]] to i64
 ; CHECK-NEXT:    [[B:%.*]] = xor i64 [[A]], 7
 ; CHECK-NEXT:    [[GP2:%.*]] = inttoptr i64 [[B]] to ptr
-; CHECK-NEXT:    [[VAL:%.*]] = load i16, ptr [[GP2]], align 2
+; CHECK-NEXT:    [[TMP1:%.*]] = addrspacecast ptr [[GP2]] to ptr addrspace(4)
+; CHECK-NEXT:    [[VAL:%.*]] = load i16, ptr addrspace(4) [[TMP1]], align 2
 ; CHECK-NEXT:    ret void
 ;
   %gp = addrspacecast ptr addrspace(4) %sp to ptr
   %a = ptrtoint ptr %gp to i64
   %b = xor i64 %a, 7
+  %gp2 = inttoptr i64 %b to ptr
+  %val = load i16, ptr %gp2, align 2
+  ret void
+}
+
+define void @test_xor_constant_high_bits(ptr addrspace(4) %sp) {
+; CHECK-LABEL: define void @test_xor_constant_high_bits(
+; CHECK-SAME: ptr addrspace(4) [[SP:%.*]]) {
+; CHECK-NEXT:    [[GP:%.*]] = addrspacecast ptr addrspace(4) [[SP]] to ptr
+; CHECK-NEXT:    [[A:%.*]] = ptrtoint ptr [[GP]] to i64
+; CHECK-NEXT:    [[B:%.*]] = xor i64 [[A]], -9223372036854775808
+; CHECK-NEXT:    [[GP2:%.*]] = inttoptr i64 [[B]] to ptr
+; CHECK-NEXT:    [[TMP1:%.*]] = addrspacecast ptr [[GP2]] to ptr addrspace(4)
+; CHECK-NEXT:    [[VAL:%.*]] = load i16, ptr addrspace(4) [[TMP1]], align 2
+; CHECK-NEXT:    ret void
+;
+  %gp = addrspacecast ptr addrspace(4) %sp to ptr
+  %a = ptrtoint ptr %gp to i64
+  ; 0x8000000000000000 - bit 63 set, should be optimized for constant
+  %b = xor i64 %a, -9223372036854775808
   %gp2 = inttoptr i64 %b to ptr
   %val = load i16, ptr %gp2, align 2
   ret void
@@ -413,5 +474,90 @@ define void @test_swizzle_local(ptr addrspace(3) %sp) {
   %xor = xor i64 %or5, %t1
   %gp2 = inttoptr i64 %xor to ptr
   store i16 0, ptr %gp2, align 2
+  ret void
+}
+
+; Constant 32-bit memory tests - addrspace(6)
+; Uses 32-bit pointers, all 32 bits preserved
+
+define void @test_xor_constant_32bit(ptr addrspace(6) %sp) {
+; CHECK-LABEL: define void @test_xor_constant_32bit(
+; CHECK-SAME: ptr addrspace(6) [[SP:%.*]]) {
+; CHECK-NEXT:    [[GP:%.*]] = addrspacecast ptr addrspace(6) [[SP]] to ptr
+; CHECK-NEXT:    [[A:%.*]] = ptrtoint ptr [[GP]] to i64
+; CHECK-NEXT:    [[B:%.*]] = xor i64 [[A]], 7
+; CHECK-NEXT:    [[GP2:%.*]] = inttoptr i64 [[B]] to ptr
+; CHECK-NEXT:    [[TMP1:%.*]] = addrspacecast ptr [[GP2]] to ptr addrspace(6)
+; CHECK-NEXT:    [[VAL:%.*]] = load i16, ptr addrspace(6) [[TMP1]], align 2
+; CHECK-NEXT:    ret void
+;
+  %gp = addrspacecast ptr addrspace(6) %sp to ptr
+  %a = ptrtoint ptr %gp to i64
+  %b = xor i64 %a, 7
+  %gp2 = inttoptr i64 %b to ptr
+  %val = load i16, ptr %gp2, align 2
+  ret void
+}
+
+; Vector pointer tests - vectors are NOT currently optimized by InferAddressSpaces
+
+define void @test_xor_local_vector(<2 x ptr addrspace(3)> %sp) {
+; CHECK-LABEL: define void @test_xor_local_vector(
+; CHECK-SAME: <2 x ptr addrspace(3)> [[SP:%.*]]) {
+; CHECK-NEXT:    [[GP:%.*]] = addrspacecast <2 x ptr addrspace(3)> [[SP]] to <2 x ptr>
+; CHECK-NEXT:    [[A:%.*]] = ptrtoint <2 x ptr> [[GP]] to <2 x i64>
+; CHECK-NEXT:    [[B:%.*]] = xor <2 x i64> [[A]], splat (i64 4095)
+; CHECK-NEXT:    [[GP2:%.*]] = inttoptr <2 x i64> [[B]] to <2 x ptr>
+; CHECK-NEXT:    [[EL0:%.*]] = extractelement <2 x ptr> [[GP2]], i32 0
+; CHECK-NEXT:    store i16 0, ptr [[EL0]], align 2
+; CHECK-NEXT:    ret void
+;
+  %gp = addrspacecast <2 x ptr addrspace(3)> %sp to <2 x ptr>
+  %a = ptrtoint <2 x ptr> %gp to <2 x i64>
+  %b = xor <2 x i64> %a, splat (i64 4095)
+  %gp2 = inttoptr <2 x i64> %b to <2 x ptr>
+  %el0 = extractelement <2 x ptr> %gp2, i32 0
+  store i16 0, ptr %el0, align 2
+  ret void
+}
+
+define void @test_xor_global_vector(<2 x ptr addrspace(1)> %sp) {
+; CHECK-LABEL: define void @test_xor_global_vector(
+; CHECK-SAME: <2 x ptr addrspace(1)> [[SP:%.*]]) {
+; CHECK-NEXT:    [[GP:%.*]] = addrspacecast <2 x ptr addrspace(1)> [[SP]] to <2 x ptr>
+; CHECK-NEXT:    [[A:%.*]] = ptrtoint <2 x ptr> [[GP]] to <2 x i64>
+; CHECK-NEXT:    [[B:%.*]] = xor <2 x i64> [[A]], splat (i64 4294967296)
+; CHECK-NEXT:    [[GP2:%.*]] = inttoptr <2 x i64> [[B]] to <2 x ptr>
+; CHECK-NEXT:    [[EL0:%.*]] = extractelement <2 x ptr> [[GP2]], i32 0
+; CHECK-NEXT:    store i16 0, ptr [[EL0]], align 2
+; CHECK-NEXT:    ret void
+;
+  %gp = addrspacecast <2 x ptr addrspace(1)> %sp to <2 x ptr>
+  %a = ptrtoint <2 x ptr> %gp to <2 x i64>
+  ; Vector case - not currently optimized by InferAddressSpaces
+  %b = xor <2 x i64> %a, splat (i64 4294967296)
+  %gp2 = inttoptr <2 x i64> %b to <2 x ptr>
+  %el0 = extractelement <2 x ptr> %gp2, i32 0
+  store i16 0, ptr %el0, align 2
+  ret void
+}
+
+define void @test_xor_private_vector(<2 x ptr addrspace(5)> %sp) {
+; CHECK-LABEL: define void @test_xor_private_vector(
+; CHECK-SAME: <2 x ptr addrspace(5)> [[SP:%.*]]) {
+; CHECK-NEXT:    [[GP:%.*]] = addrspacecast <2 x ptr addrspace(5)> [[SP]] to <2 x ptr>
+; CHECK-NEXT:    [[A:%.*]] = ptrtoint <2 x ptr> [[GP]] to <2 x i64>
+; CHECK-NEXT:    [[B:%.*]] = xor <2 x i64> [[A]], splat (i64 255)
+; CHECK-NEXT:    [[GP2:%.*]] = inttoptr <2 x i64> [[B]] to <2 x ptr>
+; CHECK-NEXT:    [[EL0:%.*]] = extractelement <2 x ptr> [[GP2]], i32 0
+; CHECK-NEXT:    store i16 0, ptr [[EL0]], align 2
+; CHECK-NEXT:    ret void
+;
+  %gp = addrspacecast <2 x ptr addrspace(5)> %sp to <2 x ptr>
+  %a = ptrtoint <2 x ptr> %gp to <2 x i64>
+  %b = xor <2 x i64> %a, splat (i64 255)
+  %gp2 = inttoptr <2 x i64> %b to <2 x ptr>
+  %el0 = extractelement <2 x ptr> %gp2, i32 0
+  store i16 0, ptr %el0, align 2
   ret void
 }
