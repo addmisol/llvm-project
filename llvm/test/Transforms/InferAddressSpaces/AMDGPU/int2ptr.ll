@@ -419,8 +419,7 @@ define void @test_sub_local(ptr addrspace(3) %sp) {
   ret void
 }
 
-; Complex swizzling pattern - similar to NVPTX test3
-
+; Complex swizzling pattern
 define void @test_swizzle_local(ptr addrspace(3) %sp) {
 ; CHECK-LABEL: define void @test_swizzle_local(
 ; CHECK-SAME: ptr addrspace(3) [[SP:%.*]]) {
