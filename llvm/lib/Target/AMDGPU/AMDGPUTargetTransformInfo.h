@@ -228,8 +228,7 @@ public:
     // aligned to 2^32. Address changes within the lower 32 bits do not change
     // the address space aperture, so it's safe to cast back to the original
     // address space.
-    if (DstAS == AMDGPUAS::LOCAL_ADDRESS ||
-        DstAS == AMDGPUAS::PRIVATE_ADDRESS)
+    if (DstAS == AMDGPUAS::LOCAL_ADDRESS || DstAS == AMDGPUAS::PRIVATE_ADDRESS)
       return APInt::getLowBitsSet(FlatPtrSize, 32);
 
     // Constant 32-bit address space uses 32-bit pointers, but mask must match
