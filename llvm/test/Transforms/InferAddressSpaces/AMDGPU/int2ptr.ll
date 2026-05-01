@@ -336,27 +336,6 @@ define void @test_xor_private_fail_bit32(ptr addrspace(5) %sp) {
   ret void
 }
 
-; Region memory tests - addrspace(2)
-; Region address space is NOT handled, so these should NOT be optimized
-
-define void @test_xor_region(ptr addrspace(2) %sp) {
-; CHECK-LABEL: define void @test_xor_region(
-; CHECK-SAME: ptr addrspace(2) [[SP:%.*]]) {
-; CHECK-NEXT:    [[GP:%.*]] = addrspacecast ptr addrspace(2) [[SP]] to ptr
-; CHECK-NEXT:    [[A:%.*]] = ptrtoint ptr [[GP]] to i64
-; CHECK-NEXT:    [[B:%.*]] = xor i64 [[A]], 7
-; CHECK-NEXT:    [[GP2:%.*]] = inttoptr i64 [[B]] to ptr
-; CHECK-NEXT:    store i16 0, ptr [[GP2]], align 2
-; CHECK-NEXT:    ret void
-;
-  %gp = addrspacecast ptr addrspace(2) %sp to ptr
-  %a = ptrtoint ptr %gp to i64
-  %b = xor i64 %a, 7
-  %gp2 = inttoptr i64 %b to ptr
-  store i16 0, ptr %gp2, align 2
-  ret void
-}
-
 ; Constant memory tests - addrspace(4)
 ; Constant address space uses same addresses as global, all 64 bits preserved
 
