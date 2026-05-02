@@ -79,11 +79,12 @@ bool AMDGPUABIInfo::isHomogeneousAggregateSmallEnough(
 }
 
 /// Check if struct contains only identical float types that can be packed
-/// into a vector (e.g., {half, half} -> <2 x half>, {float, float} -> <2 x float>).
-/// Returns the vector type if packable, nullptr otherwise.
-static llvm::Type *getPackableHomogeneousFloatVectorType(const RecordDecl *RD,
-                                                          const ASTContext &Context,
-                                                          llvm::LLVMContext &VMContext) {
+/// into a vector (e.g., {half, half} -> <2 x half>, {float, float} -> <2 x
+/// float>). Returns the vector type if packable, nullptr otherwise.
+static llvm::Type *
+getPackableHomogeneousFloatVectorType(const RecordDecl *RD,
+                                      const ASTContext &Context,
+                                      llvm::LLVMContext &VMContext) {
   QualType FirstFloatTy;
   unsigned Count = 0;
 
