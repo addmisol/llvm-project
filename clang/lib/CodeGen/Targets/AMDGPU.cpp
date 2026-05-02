@@ -8,7 +8,6 @@
 
 #include "ABIInfoImpl.h"
 #include "TargetInfo.h"
-#include "clang/AST/DeclCXX.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/AMDGPUAddrSpace.h"
 
@@ -76,6 +75,67 @@ bool AMDGPUABIInfo::isHomogeneousAggregateSmallEnough(
 
   // Homogeneous Aggregates may occupy at most 16 registers.
   return Members * NumRegs <= MaxNumRegsForArgsRet;
+}
+
+/// Check if struct contains only identical float types that can be packed
+/// into a vector (e.g., {half, half} -> <2 x half>, {float, float} -> <2 x float>).
+/// Returns the vector type if packable, nullptr otherwise.
+static llvm::Type *getPackableHomogeneousFloatVectorType(const RecordDecl *RD,
+                                                          const ASTContext &Context,
+                                                          llvm::LLVMContext &VMContext) {
+  QualType FirstFloatTy;
+  unsigned Count = 0;
+
+  for (const FieldDecl *Field : RD->fields()) {
+    // No bitfields in float vector packing
+    if (Field->isBitField())
+      return nullptr;
+
+    QualType FieldTy = Field->getType();
+
+    // Must be a floating-point type
+    if (!FieldTy->isFloatingType())
+      return nullptr;
+
+    // All fields must be the same type
+    if (FirstFloatTy.isNull()) {
+      FirstFloatTy = FieldTy;
+    } else if (!Context.hasSameType(FirstFloatTy, FieldTy)) {
+      return nullptr; // Mixed float types like {half, float}
+    }
+
+    Count++;
+  }
+
+  // Only pack 2 or 4 elements (common vector sizes)
+  if (Count != 2 && Count != 4)
+    return nullptr;
+
+  // Convert QualType to LLVM Type
+  llvm::Type *EltTy = nullptr;
+  const BuiltinType *BT = FirstFloatTy->getAs<BuiltinType>();
+  if (!BT)
+    return nullptr;
+
+  switch (BT->getKind()) {
+  case BuiltinType::Half:
+  case BuiltinType::Float16:
+    EltTy = llvm::Type::getHalfTy(VMContext);
+    break;
+  case BuiltinType::BFloat16:
+    EltTy = llvm::Type::getBFloatTy(VMContext);
+    break;
+  case BuiltinType::Float:
+    EltTy = llvm::Type::getFloatTy(VMContext);
+    break;
+  case BuiltinType::Double:
+    EltTy = llvm::Type::getDoubleTy(VMContext);
+    break;
+  default:
+    return nullptr;
+  }
+
+  return llvm::FixedVectorType::get(EltTy, Count);
 }
 
 /// Check if all fields in an aggregate type contain only sub-32-bit integer
@@ -218,6 +278,17 @@ ABIArgInfo AMDGPUABIInfo::classifyReturnType(QualType RetTy) const {
       uint64_t Size = getContext().getTypeSize(RetTy);
       if (Size <= 64) {
         const RecordDecl *RD = RetTy->getAsRecordDecl();
+
+        // First, try to pack uniform float structs into vectors
+        // e.g., {half, half} -> <2 x half>, {float, float} -> <2 x float>
+        if (RD) {
+          if (llvm::Type *VecTy = getPackableHomogeneousFloatVectorType(
+                  RD, getContext(), getVMContext())) {
+            return ABIArgInfo::getDirect(VecTy);
+          }
+        }
+
+        // Then, check for packable integer types
         bool ShouldPackToInt =
             RD && containsOnlyPackableIntegerTypes(RD, getContext());
 
@@ -319,6 +390,19 @@ ABIArgInfo AMDGPUABIInfo::classifyArgumentType(QualType Ty, bool Variadic,
     uint64_t Size = getContext().getTypeSize(Ty);
     if (Size <= 64) {
       const RecordDecl *RD = Ty->getAsRecordDecl();
+
+      // First, try to pack uniform float structs into vectors
+      // e.g., {half, half} -> <2 x half>, {float, float} -> <2 x float>
+      if (RD) {
+        if (llvm::Type *VecTy = getPackableHomogeneousFloatVectorType(
+                RD, getContext(), getVMContext())) {
+          unsigned NumRegs = (Size + 31) / 32;
+          NumRegsLeft -= std::min(NumRegsLeft, NumRegs);
+          return ABIArgInfo::getDirect(VecTy);
+        }
+      }
+
+      // Then, check for packable integer types
       bool ShouldPackToInt =
           RD && containsOnlyPackableIntegerTypes(RD, getContext());
 
@@ -382,9 +466,6 @@ public:
     return getLangASFromTargetAS(
         getABIInfo().getDataLayout().getAllocaAddrSpace());
   }
-
-  LangAS getSRetAddrSpace(const CXXRecordDecl *RD) const override;
-
   LangAS getGlobalVarAddressSpace(CodeGenModule &CGM,
                                   const VarDecl *D) const override;
   StringRef getLLVMSyncScopeStr(const LangOptions &LangOpts, SyncScope Scope,
@@ -542,15 +623,6 @@ llvm::Constant *AMDGPUTargetCodeGenInfo::getNullPointer(
       PT->getContext(), Ctx.getTargetAddressSpace(LangAS::opencl_generic));
   return llvm::ConstantExpr::getAddrSpaceCast(
       llvm::ConstantPointerNull::get(NPT), PT);
-}
-
-LangAS
-AMDGPUTargetCodeGenInfo::getSRetAddrSpace(const CXXRecordDecl *RD) const {
-  // Types with no viable copy/move must be constructed in-place , use the
-  // default AS so the sret pointer matches the "this" convention.
-  if (RD && !RD->canPassInRegisters())
-    return LangAS::Default;
-  return getASTAllocaAddressSpace();
 }
 
 LangAS
