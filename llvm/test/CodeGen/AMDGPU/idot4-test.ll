@@ -65,7 +65,7 @@ define i32 @test_udot4_sat(<4 x i8> %a, <4 x i8> %b, i32 %c) {
 entry:
   %conv.i = zext <4 x i8> %a to <4 x i32>
   %conv8.i = zext <4 x i8> %b to <4 x i32>
-  %mul.i = mul nuw nsw <4 x i32> %conv8.i, %conv.i
+  %mul.i = mul <4 x i32> %conv8.i, %conv.i
   %rdx.add.i = tail call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %mul.i)
   %cond.i.i = tail call i32 @llvm.uadd.sat.i32(i32 %rdx.add.i, i32 %c)
   ret i32 %cond.i.i
@@ -130,7 +130,7 @@ define i32 @test_udot4_unsat(<4 x i8> %a, <4 x i8> %b, i32 %c) {
 entry:
   %conv.i = zext <4 x i8> %a to <4 x i32>
   %conv8.i = zext <4 x i8> %b to <4 x i32>
-  %mul.i = mul nuw nsw <4 x i32> %conv8.i, %conv.i
+  %mul.i = mul <4 x i32> %conv8.i, %conv.i
   %rdx.add.i = tail call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %mul.i)
   %add.i = add i32 %rdx.add.i, %c
   ret i32 %add.i
@@ -190,7 +190,7 @@ define i32 @test_sdot4_sat(<4 x i8> %a, <4 x i8> %b, i32 %c) {
 entry:
   %conv.i = sext <4 x i8> %a to <4 x i32>
   %conv8.i = sext <4 x i8> %b to <4 x i32>
-  %mul.i = mul nsw <4 x i32> %conv8.i, %conv.i
+  %mul.i = mul <4 x i32> %conv8.i, %conv.i
   %rdx.add.i = tail call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %mul.i)
   %cond1.i.i = tail call i32 @llvm.sadd.sat.i32(i32 %rdx.add.i, i32 %c)
   ret i32 %cond1.i.i
@@ -257,7 +257,7 @@ define i32 @test_sdot4_unsat(<4 x i8> %a, <4 x i8> %b, i32 %c) {
 entry:
   %conv.i = sext <4 x i8> %a to <4 x i32>
   %conv8.i = sext <4 x i8> %b to <4 x i32>
-  %mul.i = mul nsw <4 x i32> %conv8.i, %conv.i
+  %mul.i = mul <4 x i32> %conv8.i, %conv.i
   %rdx.add.i = tail call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %mul.i)
   %add.i = add i32 %rdx.add.i, %c
   ret i32 %add.i
