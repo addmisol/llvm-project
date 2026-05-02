@@ -53,12 +53,11 @@ define i32 @test_udot4_sat(<4 x i8> %a, <4 x i8> %b, i32 %c) {
 ; GFX9-NODL-LABEL: test_udot4_sat:
 ; GFX9-NODL:       ; %bb.0: ; %entry
 ; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_and_b32_e32 v1, 0xff, v1
-; GFX9-NODL-NEXT:    v_and_b32_e32 v5, 0xff, v5
+; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v1, v5, v1 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
 ; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v3, v7, v3 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
 ; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v0, v4, v0 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
 ; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v2, v6, v2 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mad_u32_u24 v1, v5, v1, v3
+; GFX9-NODL-NEXT:    v_add_u32_e32 v1, v1, v3
 ; GFX9-NODL-NEXT:    v_add3_u32 v0, v0, v2, v1
 ; GFX9-NODL-NEXT:    v_add_u32_e64 v0, v0, v8 clamp
 ; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
@@ -117,14 +116,12 @@ define i32 @test_udot4_unsat(<4 x i8> %a, <4 x i8> %b, i32 %c) {
 ; GFX9-NODL-LABEL: test_udot4_unsat:
 ; GFX9-NODL:       ; %bb.0: ; %entry
 ; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_and_b32_e32 v0, 0xff, v0
-; GFX9-NODL-NEXT:    v_and_b32_e32 v1, 0xff, v1
-; GFX9-NODL-NEXT:    v_and_b32_e32 v4, 0xff, v4
-; GFX9-NODL-NEXT:    v_and_b32_e32 v5, 0xff, v5
+; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v0, v4, v0 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
+; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v1, v5, v1 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
 ; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v2, v6, v2 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
 ; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v3, v7, v3 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mad_u32_u24 v1, v5, v1, v3
-; GFX9-NODL-NEXT:    v_mad_u32_u24 v0, v4, v0, v2
+; GFX9-NODL-NEXT:    v_add_u32_e32 v1, v1, v3
+; GFX9-NODL-NEXT:    v_add_u32_e32 v0, v0, v2
 ; GFX9-NODL-NEXT:    v_add3_u32 v0, v0, v1, v8
 ; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
 entry:
@@ -178,12 +175,11 @@ define i32 @test_sdot4_sat(<4 x i8> %a, <4 x i8> %b, i32 %c) {
 ; GFX9-NODL-LABEL: test_sdot4_sat:
 ; GFX9-NODL:       ; %bb.0: ; %entry
 ; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_bfe_i32 v1, v1, 0, 8
-; GFX9-NODL-NEXT:    v_bfe_i32 v5, v5, 0, 8
+; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v1, sext(v5), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
 ; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v3, sext(v7), sext(v3) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
 ; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v0, sext(v4), sext(v0) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
 ; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v2, sext(v6), sext(v2) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mad_i32_i24 v1, v5, v1, v3
+; GFX9-NODL-NEXT:    v_add_u32_e32 v1, v1, v3
 ; GFX9-NODL-NEXT:    v_add3_u32 v0, v0, v2, v1
 ; GFX9-NODL-NEXT:    v_add_i32 v0, v0, v8 clamp
 ; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
@@ -244,14 +240,12 @@ define i32 @test_sdot4_unsat(<4 x i8> %a, <4 x i8> %b, i32 %c) {
 ; GFX9-NODL-LABEL: test_sdot4_unsat:
 ; GFX9-NODL:       ; %bb.0: ; %entry
 ; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_bfe_i32 v0, v0, 0, 8
-; GFX9-NODL-NEXT:    v_bfe_i32 v1, v1, 0, 8
-; GFX9-NODL-NEXT:    v_bfe_i32 v4, v4, 0, 8
-; GFX9-NODL-NEXT:    v_bfe_i32 v5, v5, 0, 8
+; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v0, sext(v4), sext(v0) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
+; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v1, sext(v5), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
 ; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v2, sext(v6), sext(v2) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
 ; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v3, sext(v7), sext(v3) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mad_i32_i24 v1, v5, v1, v3
-; GFX9-NODL-NEXT:    v_mad_i32_i24 v0, v4, v0, v2
+; GFX9-NODL-NEXT:    v_add_u32_e32 v1, v1, v3
+; GFX9-NODL-NEXT:    v_add_u32_e32 v0, v0, v2
 ; GFX9-NODL-NEXT:    v_add3_u32 v0, v0, v1, v8
 ; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
 entry:
@@ -304,13 +298,12 @@ define i32 @udot4_unsat_bitcast(i32 %a_packed, i32 %b_packed, i32 %c) {
 ; GFX9-NODL:       ; %bb.0: ; %entry
 ; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
 ; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v3, 8, v0
-; GFX9-NODL-NEXT:    v_and_b32_e32 v4, 0xff, v0
-; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v5, 8, v1
-; GFX9-NODL-NEXT:    v_and_b32_e32 v6, 0xff, v1
-; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v7, v0, v1 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
+; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v4, 8, v1
+; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v5, v0, v1 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
+; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v6, v0, v1 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
 ; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v0, v0, v1 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_3 src1_sel:BYTE_3
-; GFX9-NODL-NEXT:    v_mad_u32_u24 v1, v4, v6, v7
-; GFX9-NODL-NEXT:    v_mad_u32_u24 v0, v3, v5, v0
+; GFX9-NODL-NEXT:    v_mad_u32_u24 v0, v3, v4, v0
+; GFX9-NODL-NEXT:    v_add_u32_e32 v1, v5, v6
 ; GFX9-NODL-NEXT:    v_add3_u32 v0, v1, v0, v2
 ; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
 entry:
@@ -364,14 +357,12 @@ define i32 @sdot4_unsat_bitcast(i32 %a_packed, i32 %b_packed, i32 %c) {
 ; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
 ; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v3, 8, v1
 ; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v4, 8, v0
-; GFX9-NODL-NEXT:    v_bfe_i32 v4, v4, 0, 8
-; GFX9-NODL-NEXT:    v_bfe_i32 v5, v0, 0, 8
-; GFX9-NODL-NEXT:    v_bfe_i32 v3, v3, 0, 8
-; GFX9-NODL-NEXT:    v_bfe_i32 v6, v1, 0, 8
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v7, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
+; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v5, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
+; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v3, sext(v4), sext(v3) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
+; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v4, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
 ; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v0, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_3 src1_sel:BYTE_3
-; GFX9-NODL-NEXT:    v_mad_i32_i24 v0, v4, v3, v0
-; GFX9-NODL-NEXT:    v_mad_i32_i24 v1, v5, v6, v7
+; GFX9-NODL-NEXT:    v_add_u32_e32 v0, v3, v0
+; GFX9-NODL-NEXT:    v_add_u32_e32 v1, v5, v4
 ; GFX9-NODL-NEXT:    v_add3_u32 v0, v1, v0, v2
 ; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
 entry:
@@ -469,13 +460,12 @@ define i32 @sdot4_sat_bitcast(i32 %a_packed, i32 %b_packed, i32 %c) {
 ; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
 ; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v3, 8, v1
 ; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v4, 8, v0
-; GFX9-NODL-NEXT:    v_bfe_i32 v4, v4, 0, 8
-; GFX9-NODL-NEXT:    v_bfe_i32 v3, v3, 0, 8
 ; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v5, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v6, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
+; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v3, sext(v4), sext(v3) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
+; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v4, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
 ; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v0, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_3 src1_sel:BYTE_3
-; GFX9-NODL-NEXT:    v_mad_i32_i24 v0, v4, v3, v0
-; GFX9-NODL-NEXT:    v_add3_u32 v0, v5, v6, v0
+; GFX9-NODL-NEXT:    v_add_u32_e32 v0, v3, v0
+; GFX9-NODL-NEXT:    v_add3_u32 v0, v5, v4, v0
 ; GFX9-NODL-NEXT:    v_add_i32 v0, v0, v2 clamp
 ; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
 entry:
@@ -540,14 +530,12 @@ define i32 @udot4_v4i8_arg(<4 x i8> %a, <4 x i8> %b, i32 %c) {
 ; GFX9-NODL-LABEL: udot4_v4i8_arg:
 ; GFX9-NODL:       ; %bb.0: ; %entry
 ; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_and_b32_e32 v0, 0xff, v0
-; GFX9-NODL-NEXT:    v_and_b32_e32 v1, 0xff, v1
-; GFX9-NODL-NEXT:    v_and_b32_e32 v4, 0xff, v4
-; GFX9-NODL-NEXT:    v_and_b32_e32 v5, 0xff, v5
+; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v0, v0, v4 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
+; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v1, v1, v5 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
 ; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v2, v2, v6 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
 ; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v3, v3, v7 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mad_u32_u24 v1, v1, v5, v3
-; GFX9-NODL-NEXT:    v_mad_u32_u24 v0, v0, v4, v2
+; GFX9-NODL-NEXT:    v_add_u32_e32 v1, v1, v3
+; GFX9-NODL-NEXT:    v_add_u32_e32 v0, v0, v2
 ; GFX9-NODL-NEXT:    v_add3_u32 v0, v0, v1, v8
 ; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
 entry:
@@ -607,14 +595,12 @@ define i32 @sdot4_v4i8_arg(<4 x i8> %a, <4 x i8> %b, i32 %c) {
 ; GFX9-NODL-LABEL: sdot4_v4i8_arg:
 ; GFX9-NODL:       ; %bb.0: ; %entry
 ; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_bfe_i32 v0, v0, 0, 8
-; GFX9-NODL-NEXT:    v_bfe_i32 v1, v1, 0, 8
-; GFX9-NODL-NEXT:    v_bfe_i32 v4, v4, 0, 8
-; GFX9-NODL-NEXT:    v_bfe_i32 v5, v5, 0, 8
+; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v0, sext(v0), sext(v4) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
+; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v1, sext(v1), sext(v5) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
 ; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v2, sext(v2), sext(v6) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
 ; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v3, sext(v3), sext(v7) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mad_i32_i24 v1, v1, v5, v3
-; GFX9-NODL-NEXT:    v_mad_i32_i24 v0, v0, v4, v2
+; GFX9-NODL-NEXT:    v_add_u32_e32 v1, v1, v3
+; GFX9-NODL-NEXT:    v_add_u32_e32 v0, v0, v2
 ; GFX9-NODL-NEXT:    v_add3_u32 v0, v0, v1, v8
 ; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
 entry:
@@ -868,13 +854,12 @@ define i32 @dot4_mismatched_sign_sext_uadd(i32 %a_packed, i32 %b_packed, i32 %c)
 ; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
 ; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v3, 8, v1
 ; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v4, 8, v0
-; GFX9-NODL-NEXT:    v_bfe_i32 v4, v4, 0, 8
-; GFX9-NODL-NEXT:    v_bfe_i32 v3, v3, 0, 8
 ; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v5, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v6, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
+; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v3, sext(v4), sext(v3) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
+; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v4, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
 ; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v0, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_3 src1_sel:BYTE_3
-; GFX9-NODL-NEXT:    v_mad_i32_i24 v0, v4, v3, v0
-; GFX9-NODL-NEXT:    v_add3_u32 v0, v5, v6, v0
+; GFX9-NODL-NEXT:    v_add_u32_e32 v0, v3, v0
+; GFX9-NODL-NEXT:    v_add3_u32 v0, v5, v4, v0
 ; GFX9-NODL-NEXT:    v_add_u32_e64 v0, v0, v2 clamp
 ; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
 entry:
@@ -894,14 +879,12 @@ define i32 @dot4_mixed_ext(i32 %a_packed, i32 %b_packed, i32 %c) {
 ; GFX9-DL:       ; %bb.0: ; %entry
 ; GFX9-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
 ; GFX9-DL-NEXT:    v_lshrrev_b16_e32 v3, 8, v1
-; GFX9-DL-NEXT:    v_lshrrev_b16_e32 v4, 8, v0
-; GFX9-DL-NEXT:    v_and_b32_e32 v5, 0xff, v0
-; GFX9-DL-NEXT:    v_bfe_i32 v3, v3, 0, 8
-; GFX9-DL-NEXT:    v_bfe_i32 v6, v1, 0, 8
-; GFX9-DL-NEXT:    v_mul_i32_i24_sdwa v7, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
+; GFX9-DL-NEXT:    v_mul_i32_i24_sdwa v4, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
+; GFX9-DL-NEXT:    v_mul_i32_i24_sdwa v3, v0, sext(v3) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_1 src1_sel:BYTE_0
+; GFX9-DL-NEXT:    v_mul_i32_i24_sdwa v5, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
 ; GFX9-DL-NEXT:    v_mul_i32_i24_sdwa v0, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_3 src1_sel:BYTE_3
-; GFX9-DL-NEXT:    v_mad_i32_i24 v1, v5, v6, v7
-; GFX9-DL-NEXT:    v_mad_i32_i24 v0, v4, v3, v0
+; GFX9-DL-NEXT:    v_add_u32_e32 v0, v3, v0
+; GFX9-DL-NEXT:    v_add_u32_e32 v1, v4, v5
 ; GFX9-DL-NEXT:    v_add3_u32 v0, v1, v0, v2
 ; GFX9-DL-NEXT:    s_setpc_b64 s[30:31]
 ;
@@ -910,29 +893,26 @@ define i32 @dot4_mixed_ext(i32 %a_packed, i32 %b_packed, i32 %c) {
 ; GFX10-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
 ; GFX10-DL-NEXT:    v_mov_b32_e32 v3, 0xffff
 ; GFX10-DL-NEXT:    v_lshrrev_b16 v4, 8, v1
-; GFX10-DL-NEXT:    v_and_b32_e32 v5, 0xff, v0
-; GFX10-DL-NEXT:    v_bfe_i32 v6, v1, 0, 8
-; GFX10-DL-NEXT:    v_mul_i32_i24_sdwa v7, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
+; GFX10-DL-NEXT:    v_mul_i32_i24_sdwa v5, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
+; GFX10-DL-NEXT:    v_mul_i32_i24_sdwa v6, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_3 src1_sel:BYTE_3
 ; GFX10-DL-NEXT:    v_and_b32_sdwa v3, v3, v0 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:DWORD src1_sel:BYTE_1
-; GFX10-DL-NEXT:    v_bfe_i32 v4, v4, 0, 8
-; GFX10-DL-NEXT:    v_mul_i32_i24_sdwa v0, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_3 src1_sel:BYTE_3
-; GFX10-DL-NEXT:    v_mad_i32_i24 v1, v5, v6, v7
-; GFX10-DL-NEXT:    v_mad_i32_i24 v0, v3, v4, v0
-; GFX10-DL-NEXT:    v_add3_u32 v0, v1, v0, v2
+; GFX10-DL-NEXT:    v_mul_i32_i24_sdwa v0, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
+; GFX10-DL-NEXT:    v_mul_i32_i24_sdwa v3, v3, sext(v4) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:DWORD src1_sel:BYTE_0
+; GFX10-DL-NEXT:    v_add_nc_u32_e32 v0, v5, v0
+; GFX10-DL-NEXT:    v_add_nc_u32_e32 v1, v3, v6
+; GFX10-DL-NEXT:    v_add3_u32 v0, v0, v1, v2
 ; GFX10-DL-NEXT:    s_setpc_b64 s[30:31]
 ;
 ; GFX950-LABEL: dot4_mixed_ext:
 ; GFX950:       ; %bb.0: ; %entry
 ; GFX950-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
 ; GFX950-NEXT:    v_lshrrev_b16_e32 v3, 8, v1
-; GFX950-NEXT:    v_lshrrev_b16_e32 v4, 8, v0
-; GFX950-NEXT:    v_and_b32_e32 v5, 0xff, v0
-; GFX950-NEXT:    v_bfe_i32 v3, v3, 0, 8
-; GFX950-NEXT:    v_bfe_i32 v6, v1, 0, 8
-; GFX950-NEXT:    v_mul_i32_i24_sdwa v7, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
+; GFX950-NEXT:    v_mul_i32_i24_sdwa v4, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
+; GFX950-NEXT:    v_mul_i32_i24_sdwa v3, v0, sext(v3) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_1 src1_sel:BYTE_0
+; GFX950-NEXT:    v_mul_i32_i24_sdwa v5, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
 ; GFX950-NEXT:    v_mul_i32_i24_sdwa v0, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_3 src1_sel:BYTE_3
-; GFX950-NEXT:    v_mad_i32_i24 v1, v5, v6, v7
-; GFX950-NEXT:    v_mad_i32_i24 v0, v4, v3, v0
+; GFX950-NEXT:    v_add_u32_e32 v0, v3, v0
+; GFX950-NEXT:    v_add_u32_e32 v1, v4, v5
 ; GFX950-NEXT:    v_add3_u32 v0, v1, v0, v2
 ; GFX950-NEXT:    s_setpc_b64 s[30:31]
 ;
@@ -940,14 +920,12 @@ define i32 @dot4_mixed_ext(i32 %a_packed, i32 %b_packed, i32 %c) {
 ; GFX9-NODL:       ; %bb.0: ; %entry
 ; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
 ; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v3, 8, v1
-; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v4, 8, v0
-; GFX9-NODL-NEXT:    v_and_b32_e32 v5, 0xff, v0
-; GFX9-NODL-NEXT:    v_bfe_i32 v3, v3, 0, 8
-; GFX9-NODL-NEXT:    v_bfe_i32 v6, v1, 0, 8
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v7, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
+; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v4, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
+; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v3, v0, sext(v3) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_1 src1_sel:BYTE_0
+; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v5, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
 ; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v0, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_3 src1_sel:BYTE_3
-; GFX9-NODL-NEXT:    v_mad_i32_i24 v1, v5, v6, v7
-; GFX9-NODL-NEXT:    v_mad_i32_i24 v0, v4, v3, v0
+; GFX9-NODL-NEXT:    v_add_u32_e32 v0, v3, v0
+; GFX9-NODL-NEXT:    v_add_u32_e32 v1, v4, v5
 ; GFX9-NODL-NEXT:    v_add3_u32 v0, v1, v0, v2
 ; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
 entry:
