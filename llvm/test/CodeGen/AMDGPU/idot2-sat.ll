@@ -3,9 +3,8 @@
 ; RUN: llc -mtriple=amdgcn -mcpu=gfx1011 < %s | FileCheck --check-prefixes=GFX10-DL %s
 ; RUN: llc -mtriple=amdgcn -mcpu=gfx950 < %s | FileCheck --check-prefixes=GFX950 %s
 ; RUN: llc -mtriple=amdgcn -mcpu=gfx900 < %s | FileCheck --check-prefixes=GFX9-NODL %s
-; RUN: opt -mtriple=amdgcn -mcpu=gfx906 -passes=amdgpu-codegenprepare -S < %s | FileCheck --check-prefixes=OPT %s
 
-; Test dot2 and dot4 patterns with saturating add (clamp) and without
+; Test dot2 patterns with saturating add (clamp) and without
 
 ;------------------------------------------------------------------------------
 ; DOT2 SATURATING TESTS
@@ -34,9 +33,10 @@ define i32 @udot2_sat(<2 x i16> %a, <2 x i16> %b, i32 %c) {
 ; GFX9-NODL-LABEL: udot2_sat:
 ; GFX9-NODL:       ; %bb.0: ; %entry
 ; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v3, v1, v0 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_0 src1_sel:WORD_0
+; GFX9-NODL-NEXT:    v_and_b32_e32 v3, 0xffff, v0
+; GFX9-NODL-NEXT:    v_and_b32_e32 v4, 0xffff, v1
 ; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v0, v1, v0 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
-; GFX9-NODL-NEXT:    v_add_u32_e32 v0, v3, v0
+; GFX9-NODL-NEXT:    v_mad_u32_u24 v0, v4, v3, v0
 ; GFX9-NODL-NEXT:    v_add_u32_e64 v0, v0, v2 clamp
 ; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
 entry:
@@ -73,9 +73,10 @@ define i32 @sdot2_sat(<2 x i16> %a, <2 x i16> %b, i32 %c) {
 ; GFX9-NODL-LABEL: sdot2_sat:
 ; GFX9-NODL:       ; %bb.0: ; %entry
 ; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v3, sext(v1), sext(v0) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_0 src1_sel:WORD_0
+; GFX9-NODL-NEXT:    v_bfe_i32 v3, v0, 0, 16
+; GFX9-NODL-NEXT:    v_bfe_i32 v4, v1, 0, 16
 ; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v0, sext(v1), sext(v0) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
-; GFX9-NODL-NEXT:    v_add_u32_e32 v0, v3, v0
+; GFX9-NODL-NEXT:    v_mad_i32_i24 v0, v4, v3, v0
 ; GFX9-NODL-NEXT:    v_add_i32 v0, v0, v2 clamp
 ; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
 entry:
@@ -178,36 +179,40 @@ define i32 @udot2_i8_promoted_sat(<2 x i8> %a, <2 x i8> %b, i32 %c) {
 ; GFX9-DL-LABEL: udot2_i8_promoted_sat:
 ; GFX9-DL:       ; %bb.0: ; %entry
 ; GFX9-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-DL-NEXT:    v_mul_u32_u24_sdwa v0, v0, v2 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
+; GFX9-DL-NEXT:    v_and_b32_e32 v0, 0xff, v0
+; GFX9-DL-NEXT:    v_and_b32_e32 v2, 0xff, v2
 ; GFX9-DL-NEXT:    v_mul_u32_u24_sdwa v1, v1, v3 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-DL-NEXT:    v_add_u32_e32 v0, v0, v1
+; GFX9-DL-NEXT:    v_mad_u32_u24 v0, v0, v2, v1
 ; GFX9-DL-NEXT:    v_add_u32_e64 v0, v0, v4 clamp
 ; GFX9-DL-NEXT:    s_setpc_b64 s[30:31]
 ;
 ; GFX10-DL-LABEL: udot2_i8_promoted_sat:
 ; GFX10-DL:       ; %bb.0: ; %entry
 ; GFX10-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10-DL-NEXT:    v_mul_u32_u24_sdwa v0, v0, v2 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
+; GFX10-DL-NEXT:    v_and_b32_e32 v0, 0xff, v0
+; GFX10-DL-NEXT:    v_and_b32_e32 v2, 0xff, v2
 ; GFX10-DL-NEXT:    v_mul_u32_u24_sdwa v1, v1, v3 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX10-DL-NEXT:    v_add_nc_u32_e32 v0, v0, v1
+; GFX10-DL-NEXT:    v_mad_u32_u24 v0, v0, v2, v1
 ; GFX10-DL-NEXT:    v_add_nc_u32_e64 v0, v0, v4 clamp
 ; GFX10-DL-NEXT:    s_setpc_b64 s[30:31]
 ;
 ; GFX950-LABEL: udot2_i8_promoted_sat:
 ; GFX950:       ; %bb.0: ; %entry
 ; GFX950-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX950-NEXT:    v_mul_u32_u24_sdwa v0, v0, v2 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
+; GFX950-NEXT:    v_and_b32_e32 v0, 0xff, v0
+; GFX950-NEXT:    v_and_b32_e32 v2, 0xff, v2
 ; GFX950-NEXT:    v_mul_u32_u24_sdwa v1, v1, v3 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX950-NEXT:    v_add_u32_e32 v0, v0, v1
+; GFX950-NEXT:    v_mad_u32_u24 v0, v0, v2, v1
 ; GFX950-NEXT:    v_add_u32_e64 v0, v0, v4 clamp
 ; GFX950-NEXT:    s_setpc_b64 s[30:31]
 ;
 ; GFX9-NODL-LABEL: udot2_i8_promoted_sat:
 ; GFX9-NODL:       ; %bb.0: ; %entry
 ; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v0, v0, v2 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
+; GFX9-NODL-NEXT:    v_and_b32_e32 v0, 0xff, v0
+; GFX9-NODL-NEXT:    v_and_b32_e32 v2, 0xff, v2
 ; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v1, v1, v3 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_add_u32_e32 v0, v0, v1
+; GFX9-NODL-NEXT:    v_mad_u32_u24 v0, v0, v2, v1
 ; GFX9-NODL-NEXT:    v_add_u32_e64 v0, v0, v4 clamp
 ; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
 entry:
@@ -228,36 +233,40 @@ define i32 @sdot2_i8_promoted_sat(<2 x i8> %a, <2 x i8> %b, i32 %c) {
 ; GFX9-DL-LABEL: sdot2_i8_promoted_sat:
 ; GFX9-DL:       ; %bb.0: ; %entry
 ; GFX9-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-DL-NEXT:    v_mul_i32_i24_sdwa v0, sext(v0), sext(v2) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
+; GFX9-DL-NEXT:    v_bfe_i32 v0, v0, 0, 8
+; GFX9-DL-NEXT:    v_bfe_i32 v2, v2, 0, 8
 ; GFX9-DL-NEXT:    v_mul_i32_i24_sdwa v1, sext(v1), sext(v3) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-DL-NEXT:    v_add_u32_e32 v0, v0, v1
+; GFX9-DL-NEXT:    v_mad_i32_i24 v0, v0, v2, v1
 ; GFX9-DL-NEXT:    v_add_i32 v0, v0, v4 clamp
 ; GFX9-DL-NEXT:    s_setpc_b64 s[30:31]
 ;
 ; GFX10-DL-LABEL: sdot2_i8_promoted_sat:
 ; GFX10-DL:       ; %bb.0: ; %entry
 ; GFX10-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10-DL-NEXT:    v_mul_i32_i24_sdwa v0, sext(v0), sext(v2) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
+; GFX10-DL-NEXT:    v_bfe_i32 v0, v0, 0, 8
+; GFX10-DL-NEXT:    v_bfe_i32 v2, v2, 0, 8
 ; GFX10-DL-NEXT:    v_mul_i32_i24_sdwa v1, sext(v1), sext(v3) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX10-DL-NEXT:    v_add_nc_u32_e32 v0, v0, v1
+; GFX10-DL-NEXT:    v_mad_i32_i24 v0, v0, v2, v1
 ; GFX10-DL-NEXT:    v_add_nc_i32 v0, v0, v4 clamp
 ; GFX10-DL-NEXT:    s_setpc_b64 s[30:31]
 ;
 ; GFX950-LABEL: sdot2_i8_promoted_sat:
 ; GFX950:       ; %bb.0: ; %entry
 ; GFX950-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX950-NEXT:    v_mul_i32_i24_sdwa v0, sext(v0), sext(v2) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
+; GFX950-NEXT:    v_bfe_i32 v0, v0, 0, 8
+; GFX950-NEXT:    v_bfe_i32 v2, v2, 0, 8
 ; GFX950-NEXT:    v_mul_i32_i24_sdwa v1, sext(v1), sext(v3) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX950-NEXT:    v_add_u32_e32 v0, v0, v1
+; GFX950-NEXT:    v_mad_i32_i24 v0, v0, v2, v1
 ; GFX950-NEXT:    v_add_i32 v0, v0, v4 clamp
 ; GFX950-NEXT:    s_setpc_b64 s[30:31]
 ;
 ; GFX9-NODL-LABEL: sdot2_i8_promoted_sat:
 ; GFX9-NODL:       ; %bb.0: ; %entry
 ; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v0, sext(v0), sext(v2) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
+; GFX9-NODL-NEXT:    v_bfe_i32 v0, v0, 0, 8
+; GFX9-NODL-NEXT:    v_bfe_i32 v2, v2, 0, 8
 ; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v1, sext(v1), sext(v3) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_add_u32_e32 v0, v0, v1
+; GFX9-NODL-NEXT:    v_mad_i32_i24 v0, v0, v2, v1
 ; GFX9-NODL-NEXT:    v_add_i32 v0, v0, v4 clamp
 ; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
 entry:
@@ -366,690 +375,8 @@ entry:
 }
 
 ;------------------------------------------------------------------------------
-; DOT4 TESTS WITH BITCAST FROM I32
-;------------------------------------------------------------------------------
-
-; Unsigned dot4 without saturation using bitcast from i32
-; OPT-LABEL: @udot4_unsat_bitcast(
-; OPT:         [[A:%.*]] = bitcast i32 %a_packed to <4 x i8>
-; OPT:         [[B:%.*]] = bitcast i32 %b_packed to <4 x i8>
-; OPT:         [[A32:%.*]] = bitcast <4 x i8> [[A]] to i32
-; OPT:         [[B32:%.*]] = bitcast <4 x i8> [[B]] to i32
-; OPT:         [[DOT:%.*]] = call i32 @llvm.amdgcn.udot4(i32 [[A32]], i32 [[B32]], i32 0, i1 false)
-; OPT:         [[RES:%.*]] = add i32 [[DOT]], %c
-; OPT:         ret i32 [[RES]]
-;
-define i32 @udot4_unsat_bitcast(i32 %a_packed, i32 %b_packed, i32 %c) {
-; GFX9-DL-LABEL: udot4_unsat_bitcast:
-; GFX9-DL:       ; %bb.0: ; %entry
-; GFX9-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-DL-NEXT:    v_dot4_u32_u8 v0, v0, v1, 0
-; GFX9-DL-NEXT:    v_add_u32_e32 v0, v0, v2
-; GFX9-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX10-DL-LABEL: udot4_unsat_bitcast:
-; GFX10-DL:       ; %bb.0: ; %entry
-; GFX10-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10-DL-NEXT:    v_dot4_u32_u8 v0, v0, v1, 0
-; GFX10-DL-NEXT:    v_add_nc_u32_e32 v0, v0, v2
-; GFX10-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX950-LABEL: udot4_unsat_bitcast:
-; GFX950:       ; %bb.0: ; %entry
-; GFX950-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX950-NEXT:    v_dot4_u32_u8 v0, v0, v1, 0
-; GFX950-NEXT:    s_nop 2
-; GFX950-NEXT:    v_add_u32_e32 v0, v0, v2
-; GFX950-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX9-NODL-LABEL: udot4_unsat_bitcast:
-; GFX9-NODL:       ; %bb.0: ; %entry
-; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v3, 8, v0
-; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v4, 8, v1
-; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v5, v0, v1 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v6, v0, v1 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
-; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v0, v0, v1 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_3 src1_sel:BYTE_3
-; GFX9-NODL-NEXT:    v_mad_u32_u24 v0, v3, v4, v0
-; GFX9-NODL-NEXT:    v_add_u32_e32 v1, v5, v6
-; GFX9-NODL-NEXT:    v_add3_u32 v0, v1, v0, v2
-; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
-entry:
-  %a_vec = bitcast i32 %a_packed to <4 x i8>
-  %b_vec = bitcast i32 %b_packed to <4 x i8>
-  %a_ext = zext <4 x i8> %a_vec to <4 x i32>
-  %b_ext = zext <4 x i8> %b_vec to <4 x i32>
-  %mul = mul <4 x i32> %a_ext, %b_ext
-  %sum = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %mul)
-  %result = add i32 %sum, %c
-  ret i32 %result
-}
-
-; Signed dot4 without saturation using bitcast from i32
-; OPT-LABEL: @sdot4_unsat_bitcast(
-; OPT:         [[A:%.*]] = bitcast i32 %a_packed to <4 x i8>
-; OPT:         [[B:%.*]] = bitcast i32 %b_packed to <4 x i8>
-; OPT:         [[A32:%.*]] = bitcast <4 x i8> [[A]] to i32
-; OPT:         [[B32:%.*]] = bitcast <4 x i8> [[B]] to i32
-; OPT:         [[DOT:%.*]] = call i32 @llvm.amdgcn.sdot4(i32 [[A32]], i32 [[B32]], i32 0, i1 false)
-; OPT:         [[RES:%.*]] = add i32 [[DOT]], %c
-; OPT:         ret i32 [[RES]]
-;
-define i32 @sdot4_unsat_bitcast(i32 %a_packed, i32 %b_packed, i32 %c) {
-; GFX9-DL-LABEL: sdot4_unsat_bitcast:
-; GFX9-DL:       ; %bb.0: ; %entry
-; GFX9-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-DL-NEXT:    v_dot4_i32_i8 v0, v0, v1, 0
-; GFX9-DL-NEXT:    v_add_u32_e32 v0, v0, v2
-; GFX9-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX10-DL-LABEL: sdot4_unsat_bitcast:
-; GFX10-DL:       ; %bb.0: ; %entry
-; GFX10-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10-DL-NEXT:    v_mov_b32_e32 v3, 0
-; GFX10-DL-NEXT:    v_dot4c_i32_i8 v3, v0, v1
-; GFX10-DL-NEXT:    v_add_nc_u32_e32 v0, v3, v2
-; GFX10-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX950-LABEL: sdot4_unsat_bitcast:
-; GFX950:       ; %bb.0: ; %entry
-; GFX950-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX950-NEXT:    v_mov_b32_e32 v3, 0
-; GFX950-NEXT:    v_dot4c_i32_i8_e32 v3, v0, v1
-; GFX950-NEXT:    s_nop 2
-; GFX950-NEXT:    v_add_u32_e32 v0, v3, v2
-; GFX950-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX9-NODL-LABEL: sdot4_unsat_bitcast:
-; GFX9-NODL:       ; %bb.0: ; %entry
-; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v3, 8, v1
-; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v4, 8, v0
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v5, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v3, sext(v4), sext(v3) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v4, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v0, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_3 src1_sel:BYTE_3
-; GFX9-NODL-NEXT:    v_add_u32_e32 v0, v3, v0
-; GFX9-NODL-NEXT:    v_add_u32_e32 v1, v5, v4
-; GFX9-NODL-NEXT:    v_add3_u32 v0, v1, v0, v2
-; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
-entry:
-  %a_vec = bitcast i32 %a_packed to <4 x i8>
-  %b_vec = bitcast i32 %b_packed to <4 x i8>
-  %a_ext = sext <4 x i8> %a_vec to <4 x i32>
-  %b_ext = sext <4 x i8> %b_vec to <4 x i32>
-  %mul = mul <4 x i32> %a_ext, %b_ext
-  %sum = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %mul)
-  %result = add i32 %sum, %c
-  ret i32 %result
-}
-
-; Unsigned dot4 with saturation using bitcast from i32
-; OPT-LABEL: @udot4_sat_bitcast(
-; OPT:         [[A:%.*]] = bitcast i32 %a_packed to <4 x i8>
-; OPT:         [[B:%.*]] = bitcast i32 %b_packed to <4 x i8>
-; OPT:         [[A32:%.*]] = bitcast <4 x i8> [[A]] to i32
-; OPT:         [[B32:%.*]] = bitcast <4 x i8> [[B]] to i32
-; OPT:         [[DOT:%.*]] = call i32 @llvm.amdgcn.udot4(i32 [[A32]], i32 [[B32]], i32 %c, i1 true)
-; OPT:         ret i32 [[DOT]]
-;
-define i32 @udot4_sat_bitcast(i32 %a_packed, i32 %b_packed, i32 %c) {
-; GFX9-DL-LABEL: udot4_sat_bitcast:
-; GFX9-DL:       ; %bb.0: ; %entry
-; GFX9-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-DL-NEXT:    v_dot4_u32_u8 v0, v0, v1, v2 clamp
-; GFX9-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX10-DL-LABEL: udot4_sat_bitcast:
-; GFX10-DL:       ; %bb.0: ; %entry
-; GFX10-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10-DL-NEXT:    v_dot4_u32_u8 v0, v0, v1, v2 clamp
-; GFX10-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX950-LABEL: udot4_sat_bitcast:
-; GFX950:       ; %bb.0: ; %entry
-; GFX950-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX950-NEXT:    v_dot4_u32_u8 v0, v0, v1, v2 clamp
-; GFX950-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX9-NODL-LABEL: udot4_sat_bitcast:
-; GFX9-NODL:       ; %bb.0: ; %entry
-; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v3, 8, v0
-; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v4, 8, v1
-; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v5, v0, v1 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v6, v0, v1 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
-; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v0, v0, v1 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_3 src1_sel:BYTE_3
-; GFX9-NODL-NEXT:    v_mad_u32_u24 v0, v3, v4, v0
-; GFX9-NODL-NEXT:    v_add3_u32 v0, v5, v6, v0
-; GFX9-NODL-NEXT:    v_add_u32_e64 v0, v0, v2 clamp
-; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
-entry:
-  %a_vec = bitcast i32 %a_packed to <4 x i8>
-  %b_vec = bitcast i32 %b_packed to <4 x i8>
-  %a_ext = zext <4 x i8> %a_vec to <4 x i32>
-  %b_ext = zext <4 x i8> %b_vec to <4 x i32>
-  %mul = mul <4 x i32> %a_ext, %b_ext
-  %sum = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %mul)
-  %result = call i32 @llvm.uadd.sat.i32(i32 %sum, i32 %c)
-  ret i32 %result
-}
-
-; Signed dot4 with saturation using bitcast from i32
-; OPT-LABEL: @sdot4_sat_bitcast(
-; OPT:         [[A:%.*]] = bitcast i32 %a_packed to <4 x i8>
-; OPT:         [[B:%.*]] = bitcast i32 %b_packed to <4 x i8>
-; OPT:         [[A32:%.*]] = bitcast <4 x i8> [[A]] to i32
-; OPT:         [[B32:%.*]] = bitcast <4 x i8> [[B]] to i32
-; OPT:         [[DOT:%.*]] = call i32 @llvm.amdgcn.sdot4(i32 [[A32]], i32 [[B32]], i32 %c, i1 true)
-; OPT:         ret i32 [[DOT]]
-;
-define i32 @sdot4_sat_bitcast(i32 %a_packed, i32 %b_packed, i32 %c) {
-; GFX9-DL-LABEL: sdot4_sat_bitcast:
-; GFX9-DL:       ; %bb.0: ; %entry
-; GFX9-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-DL-NEXT:    v_dot4_i32_i8 v0, v0, v1, v2 clamp
-; GFX9-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX10-DL-LABEL: sdot4_sat_bitcast:
-; GFX10-DL:       ; %bb.0: ; %entry
-; GFX10-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10-DL-NEXT:    v_dot4_i32_i8 v0, v0, v1, v2 clamp
-; GFX10-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX950-LABEL: sdot4_sat_bitcast:
-; GFX950:       ; %bb.0: ; %entry
-; GFX950-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX950-NEXT:    v_dot4_i32_i8 v0, v0, v1, v2 clamp
-; GFX950-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX9-NODL-LABEL: sdot4_sat_bitcast:
-; GFX9-NODL:       ; %bb.0: ; %entry
-; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v3, 8, v1
-; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v4, 8, v0
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v5, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v3, sext(v4), sext(v3) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v4, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v0, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_3 src1_sel:BYTE_3
-; GFX9-NODL-NEXT:    v_add_u32_e32 v0, v3, v0
-; GFX9-NODL-NEXT:    v_add3_u32 v0, v5, v4, v0
-; GFX9-NODL-NEXT:    v_add_i32 v0, v0, v2 clamp
-; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
-entry:
-  %a_vec = bitcast i32 %a_packed to <4 x i8>
-  %b_vec = bitcast i32 %b_packed to <4 x i8>
-  %a_ext = sext <4 x i8> %a_vec to <4 x i32>
-  %b_ext = sext <4 x i8> %b_vec to <4 x i32>
-  %mul = mul <4 x i32> %a_ext, %b_ext
-  %sum = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %mul)
-  %result = call i32 @llvm.sadd.sat.i32(i32 %sum, i32 %c)
-  ret i32 %result
-}
-
-;------------------------------------------------------------------------------
-; TESTS WITH I8 PROMOTION
-;------------------------------------------------------------------------------
-
-; Test unsigned dot4 with i8 values zext'd individually
-define i32 @udot4_i8_zext(i8 %a0, i8 %a1, i8 %a2, i8 %a3,
-; GFX9-DL-LABEL: udot4_i8_zext:
-; GFX9-DL:       ; %bb.0: ; %entry
-; GFX9-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-DL-NEXT:    s_mov_b32 s4, 0xc0c0400
-; GFX9-DL-NEXT:    s_mov_b32 s5, 0x4000c0c
-; GFX9-DL-NEXT:    v_perm_b32 v4, v4, v5, s4
-; GFX9-DL-NEXT:    v_perm_b32 v5, v7, v6, s5
-; GFX9-DL-NEXT:    v_perm_b32 v0, v0, v1, s4
-; GFX9-DL-NEXT:    v_perm_b32 v1, v3, v2, s5
-; GFX9-DL-NEXT:    v_or_b32_e32 v4, v5, v4
-; GFX9-DL-NEXT:    v_or_b32_e32 v0, v1, v0
-; GFX9-DL-NEXT:    v_dot4_u32_u8 v0, v0, v4, 0
-; GFX9-DL-NEXT:    v_add_u32_e32 v0, v0, v8
-; GFX9-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX10-DL-LABEL: udot4_i8_zext:
-; GFX10-DL:       ; %bb.0: ; %entry
-; GFX10-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10-DL-NEXT:    v_perm_b32 v4, v4, v5, 0xc0c0400
-; GFX10-DL-NEXT:    v_perm_b32 v5, v7, v6, 0x4000c0c
-; GFX10-DL-NEXT:    v_perm_b32 v0, v0, v1, 0xc0c0400
-; GFX10-DL-NEXT:    v_perm_b32 v1, v3, v2, 0x4000c0c
-; GFX10-DL-NEXT:    v_or_b32_e32 v2, v5, v4
-; GFX10-DL-NEXT:    v_or_b32_e32 v0, v1, v0
-; GFX10-DL-NEXT:    v_dot4_u32_u8 v0, v0, v2, 0
-; GFX10-DL-NEXT:    v_add_nc_u32_e32 v0, v0, v8
-; GFX10-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX950-LABEL: udot4_i8_zext:
-; GFX950:       ; %bb.0: ; %entry
-; GFX950-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX950-NEXT:    s_mov_b32 s0, 0xc0c0400
-; GFX950-NEXT:    s_mov_b32 s1, 0x4000c0c
-; GFX950-NEXT:    v_perm_b32 v4, v4, v5, s0
-; GFX950-NEXT:    v_perm_b32 v5, v7, v6, s1
-; GFX950-NEXT:    v_perm_b32 v0, v0, v1, s0
-; GFX950-NEXT:    v_perm_b32 v1, v3, v2, s1
-; GFX950-NEXT:    v_or_b32_e32 v4, v5, v4
-; GFX950-NEXT:    v_or_b32_e32 v0, v1, v0
-; GFX950-NEXT:    v_dot4_u32_u8 v0, v0, v4, 0
-; GFX950-NEXT:    s_nop 2
-; GFX950-NEXT:    v_add_u32_e32 v0, v0, v8
-; GFX950-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX9-NODL-LABEL: udot4_i8_zext:
-; GFX9-NODL:       ; %bb.0: ; %entry
-; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v0, v0, v4 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v1, v1, v5 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v2, v2, v6 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v3, v3, v7 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_add3_u32 v0, v0, v1, v2
-; GFX9-NODL-NEXT:    v_add3_u32 v0, v0, v3, v8
-; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
-                          i8 %b0, i8 %b1, i8 %b2, i8 %b3, i32 %c) {
-entry:
-  %a0_32 = zext i8 %a0 to i32
-  %a1_32 = zext i8 %a1 to i32
-  %a2_32 = zext i8 %a2 to i32
-  %a3_32 = zext i8 %a3 to i32
-  %b0_32 = zext i8 %b0 to i32
-  %b1_32 = zext i8 %b1 to i32
-  %b2_32 = zext i8 %b2 to i32
-  %b3_32 = zext i8 %b3 to i32
-  %m0 = mul i32 %a0_32, %b0_32
-  %m1 = mul i32 %a1_32, %b1_32
-  %m2 = mul i32 %a2_32, %b2_32
-  %m3 = mul i32 %a3_32, %b3_32
-  %sum01 = add i32 %m0, %m1
-  %sum012 = add i32 %sum01, %m2
-  %sum0123 = add i32 %sum012, %m3
-  %result = add i32 %sum0123, %c
-  ret i32 %result
-}
-
-; Test signed dot4 with i8 values sext'd individually
-define i32 @sdot4_i8_sext(i8 %a0, i8 %a1, i8 %a2, i8 %a3,
-; GFX9-DL-LABEL: sdot4_i8_sext:
-; GFX9-DL:       ; %bb.0: ; %entry
-; GFX9-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-DL-NEXT:    s_mov_b32 s4, 0xc0c0400
-; GFX9-DL-NEXT:    s_mov_b32 s5, 0x4000c0c
-; GFX9-DL-NEXT:    v_perm_b32 v4, v4, v5, s4
-; GFX9-DL-NEXT:    v_perm_b32 v5, v7, v6, s5
-; GFX9-DL-NEXT:    v_perm_b32 v0, v0, v1, s4
-; GFX9-DL-NEXT:    v_perm_b32 v1, v3, v2, s5
-; GFX9-DL-NEXT:    v_or_b32_e32 v4, v5, v4
-; GFX9-DL-NEXT:    v_or_b32_e32 v0, v1, v0
-; GFX9-DL-NEXT:    v_dot4_i32_i8 v0, v0, v4, 0
-; GFX9-DL-NEXT:    v_add_u32_e32 v0, v0, v8
-; GFX9-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX10-DL-LABEL: sdot4_i8_sext:
-; GFX10-DL:       ; %bb.0: ; %entry
-; GFX10-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10-DL-NEXT:    v_perm_b32 v4, v4, v5, 0xc0c0400
-; GFX10-DL-NEXT:    v_perm_b32 v5, v7, v6, 0x4000c0c
-; GFX10-DL-NEXT:    v_perm_b32 v0, v0, v1, 0xc0c0400
-; GFX10-DL-NEXT:    v_perm_b32 v1, v3, v2, 0x4000c0c
-; GFX10-DL-NEXT:    v_or_b32_e32 v2, v5, v4
-; GFX10-DL-NEXT:    v_or_b32_e32 v0, v1, v0
-; GFX10-DL-NEXT:    v_mov_b32_e32 v1, 0
-; GFX10-DL-NEXT:    v_dot4c_i32_i8 v1, v0, v2
-; GFX10-DL-NEXT:    v_add_nc_u32_e32 v0, v1, v8
-; GFX10-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX950-LABEL: sdot4_i8_sext:
-; GFX950:       ; %bb.0: ; %entry
-; GFX950-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX950-NEXT:    s_mov_b32 s0, 0xc0c0400
-; GFX950-NEXT:    s_mov_b32 s1, 0x4000c0c
-; GFX950-NEXT:    v_perm_b32 v4, v4, v5, s0
-; GFX950-NEXT:    v_perm_b32 v5, v7, v6, s1
-; GFX950-NEXT:    v_perm_b32 v0, v0, v1, s0
-; GFX950-NEXT:    v_perm_b32 v1, v3, v2, s1
-; GFX950-NEXT:    v_or_b32_e32 v4, v5, v4
-; GFX950-NEXT:    v_or_b32_e32 v0, v1, v0
-; GFX950-NEXT:    v_mov_b32_e32 v1, 0
-; GFX950-NEXT:    v_dot4c_i32_i8_e32 v1, v0, v4
-; GFX950-NEXT:    s_nop 2
-; GFX950-NEXT:    v_add_u32_e32 v0, v1, v8
-; GFX950-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX9-NODL-LABEL: sdot4_i8_sext:
-; GFX9-NODL:       ; %bb.0: ; %entry
-; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v0, sext(v0), sext(v4) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v1, sext(v1), sext(v5) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v2, sext(v2), sext(v6) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v3, sext(v3), sext(v7) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_add3_u32 v0, v0, v1, v2
-; GFX9-NODL-NEXT:    v_add3_u32 v0, v0, v3, v8
-; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
-                          i8 %b0, i8 %b1, i8 %b2, i8 %b3, i32 %c) {
-entry:
-  %a0_32 = sext i8 %a0 to i32
-  %a1_32 = sext i8 %a1 to i32
-  %a2_32 = sext i8 %a2 to i32
-  %a3_32 = sext i8 %a3 to i32
-  %b0_32 = sext i8 %b0 to i32
-  %b1_32 = sext i8 %b1 to i32
-  %b2_32 = sext i8 %b2 to i32
-  %b3_32 = sext i8 %b3 to i32
-  %m0 = mul i32 %a0_32, %b0_32
-  %m1 = mul i32 %a1_32, %b1_32
-  %m2 = mul i32 %a2_32, %b2_32
-  %m3 = mul i32 %a3_32, %b3_32
-  %sum01 = add i32 %m0, %m1
-  %sum012 = add i32 %sum01, %m2
-  %sum0123 = add i32 %sum012, %m3
-  %result = add i32 %sum0123, %c
-  ret i32 %result
-}
-
-;------------------------------------------------------------------------------
-; TESTS WITH <4 x i8> FUNCTION ARGUMENTS
-;------------------------------------------------------------------------------
-
-; Test with raw <4 x i8> arguments (ABI passes as separate registers)
-define i32 @udot4_v4i8_arg(<4 x i8> %a, <4 x i8> %b, i32 %c) {
-; GFX9-DL-LABEL: udot4_v4i8_arg:
-; GFX9-DL:       ; %bb.0: ; %entry
-; GFX9-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-DL-NEXT:    s_mov_b32 s4, 0xc0c0004
-; GFX9-DL-NEXT:    v_perm_b32 v4, v4, v5, s4
-; GFX9-DL-NEXT:    v_perm_b32 v5, v6, v7, s4
-; GFX9-DL-NEXT:    v_perm_b32 v0, v0, v1, s4
-; GFX9-DL-NEXT:    v_perm_b32 v1, v2, v3, s4
-; GFX9-DL-NEXT:    v_lshl_or_b32 v4, v5, 16, v4
-; GFX9-DL-NEXT:    v_lshl_or_b32 v0, v1, 16, v0
-; GFX9-DL-NEXT:    v_dot4_u32_u8 v0, v0, v4, 0
-; GFX9-DL-NEXT:    v_add_u32_e32 v0, v0, v8
-; GFX9-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX10-DL-LABEL: udot4_v4i8_arg:
-; GFX10-DL:       ; %bb.0: ; %entry
-; GFX10-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10-DL-NEXT:    v_perm_b32 v4, v4, v5, 0xc0c0004
-; GFX10-DL-NEXT:    v_perm_b32 v5, v6, v7, 0xc0c0004
-; GFX10-DL-NEXT:    v_perm_b32 v0, v0, v1, 0xc0c0004
-; GFX10-DL-NEXT:    v_perm_b32 v1, v2, v3, 0xc0c0004
-; GFX10-DL-NEXT:    v_lshl_or_b32 v2, v5, 16, v4
-; GFX10-DL-NEXT:    v_lshl_or_b32 v0, v1, 16, v0
-; GFX10-DL-NEXT:    v_dot4_u32_u8 v0, v0, v2, 0
-; GFX10-DL-NEXT:    v_add_nc_u32_e32 v0, v0, v8
-; GFX10-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX950-LABEL: udot4_v4i8_arg:
-; GFX950:       ; %bb.0: ; %entry
-; GFX950-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX950-NEXT:    s_mov_b32 s0, 0xc0c0004
-; GFX950-NEXT:    v_perm_b32 v4, v4, v5, s0
-; GFX950-NEXT:    v_perm_b32 v5, v6, v7, s0
-; GFX950-NEXT:    v_perm_b32 v0, v0, v1, s0
-; GFX950-NEXT:    v_perm_b32 v1, v2, v3, s0
-; GFX950-NEXT:    v_lshl_or_b32 v4, v5, 16, v4
-; GFX950-NEXT:    v_lshl_or_b32 v0, v1, 16, v0
-; GFX950-NEXT:    v_dot4_u32_u8 v0, v0, v4, 0
-; GFX950-NEXT:    s_nop 2
-; GFX950-NEXT:    v_add_u32_e32 v0, v0, v8
-; GFX950-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX9-NODL-LABEL: udot4_v4i8_arg:
-; GFX9-NODL:       ; %bb.0: ; %entry
-; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v0, v0, v4 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v1, v1, v5 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v2, v2, v6 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v3, v3, v7 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_add_u32_e32 v1, v1, v3
-; GFX9-NODL-NEXT:    v_add_u32_e32 v0, v0, v2
-; GFX9-NODL-NEXT:    v_add3_u32 v0, v0, v1, v8
-; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
-entry:
-  %a_ext = zext <4 x i8> %a to <4 x i32>
-  %b_ext = zext <4 x i8> %b to <4 x i32>
-  %mul = mul <4 x i32> %a_ext, %b_ext
-  %sum = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %mul)
-  %result = add i32 %sum, %c
-  ret i32 %result
-}
-
-define i32 @sdot4_v4i8_arg(<4 x i8> %a, <4 x i8> %b, i32 %c) {
-; GFX9-DL-LABEL: sdot4_v4i8_arg:
-; GFX9-DL:       ; %bb.0: ; %entry
-; GFX9-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-DL-NEXT:    s_mov_b32 s4, 0xc0c0004
-; GFX9-DL-NEXT:    v_perm_b32 v4, v4, v5, s4
-; GFX9-DL-NEXT:    v_perm_b32 v5, v6, v7, s4
-; GFX9-DL-NEXT:    v_perm_b32 v0, v0, v1, s4
-; GFX9-DL-NEXT:    v_perm_b32 v1, v2, v3, s4
-; GFX9-DL-NEXT:    v_lshl_or_b32 v4, v5, 16, v4
-; GFX9-DL-NEXT:    v_lshl_or_b32 v0, v1, 16, v0
-; GFX9-DL-NEXT:    v_dot4_i32_i8 v0, v0, v4, 0
-; GFX9-DL-NEXT:    v_add_u32_e32 v0, v0, v8
-; GFX9-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX10-DL-LABEL: sdot4_v4i8_arg:
-; GFX10-DL:       ; %bb.0: ; %entry
-; GFX10-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10-DL-NEXT:    v_perm_b32 v4, v4, v5, 0xc0c0004
-; GFX10-DL-NEXT:    v_perm_b32 v5, v6, v7, 0xc0c0004
-; GFX10-DL-NEXT:    v_perm_b32 v0, v0, v1, 0xc0c0004
-; GFX10-DL-NEXT:    v_perm_b32 v1, v2, v3, 0xc0c0004
-; GFX10-DL-NEXT:    v_lshl_or_b32 v2, v5, 16, v4
-; GFX10-DL-NEXT:    v_lshl_or_b32 v0, v1, 16, v0
-; GFX10-DL-NEXT:    v_mov_b32_e32 v1, 0
-; GFX10-DL-NEXT:    v_dot4c_i32_i8 v1, v0, v2
-; GFX10-DL-NEXT:    v_add_nc_u32_e32 v0, v1, v8
-; GFX10-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX950-LABEL: sdot4_v4i8_arg:
-; GFX950:       ; %bb.0: ; %entry
-; GFX950-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX950-NEXT:    s_mov_b32 s0, 0xc0c0004
-; GFX950-NEXT:    v_perm_b32 v4, v4, v5, s0
-; GFX950-NEXT:    v_perm_b32 v5, v6, v7, s0
-; GFX950-NEXT:    v_perm_b32 v0, v0, v1, s0
-; GFX950-NEXT:    v_perm_b32 v1, v2, v3, s0
-; GFX950-NEXT:    v_lshl_or_b32 v4, v5, 16, v4
-; GFX950-NEXT:    v_lshl_or_b32 v0, v1, 16, v0
-; GFX950-NEXT:    v_mov_b32_e32 v1, 0
-; GFX950-NEXT:    v_dot4c_i32_i8_e32 v1, v0, v4
-; GFX950-NEXT:    s_nop 2
-; GFX950-NEXT:    v_add_u32_e32 v0, v1, v8
-; GFX950-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX9-NODL-LABEL: sdot4_v4i8_arg:
-; GFX9-NODL:       ; %bb.0: ; %entry
-; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v0, sext(v0), sext(v4) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v1, sext(v1), sext(v5) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v2, sext(v2), sext(v6) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v3, sext(v3), sext(v7) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_add_u32_e32 v1, v1, v3
-; GFX9-NODL-NEXT:    v_add_u32_e32 v0, v0, v2
-; GFX9-NODL-NEXT:    v_add3_u32 v0, v0, v1, v8
-; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
-entry:
-  %a_ext = sext <4 x i8> %a to <4 x i32>
-  %b_ext = sext <4 x i8> %b to <4 x i32>
-  %mul = mul <4 x i32> %a_ext, %b_ext
-  %sum = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %mul)
-  %result = add i32 %sum, %c
-  ret i32 %result
-}
-
-declare i32 @llvm.sadd.sat.i32(i32, i32)
-declare i32 @llvm.uadd.sat.i32(i32, i32)
-declare i32 @llvm.vector.reduce.add.v4i32(<4 x i32>)
-
-;------------------------------------------------------------------------------
 ; NEGATIVE TESTS
 ;------------------------------------------------------------------------------
-
-; Negative test: mismatched signedness (zext with sadd.sat)
-define i32 @dot4_mismatched_sign_zext_sadd(i32 %a_packed, i32 %b_packed, i32 %c) {
-; GFX9-DL-LABEL: dot4_mismatched_sign_zext_sadd:
-; GFX9-DL:       ; %bb.0: ; %entry
-; GFX9-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-DL-NEXT:    v_dot4_u32_u8 v0, v0, v1, 0
-; GFX9-DL-NEXT:    v_add_i32 v0, v0, v2 clamp
-; GFX9-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX10-DL-LABEL: dot4_mismatched_sign_zext_sadd:
-; GFX10-DL:       ; %bb.0: ; %entry
-; GFX10-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10-DL-NEXT:    v_dot4_u32_u8 v0, v0, v1, 0
-; GFX10-DL-NEXT:    v_add_nc_i32 v0, v0, v2 clamp
-; GFX10-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX950-LABEL: dot4_mismatched_sign_zext_sadd:
-; GFX950:       ; %bb.0: ; %entry
-; GFX950-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX950-NEXT:    v_dot4_u32_u8 v0, v0, v1, 0
-; GFX950-NEXT:    s_nop 2
-; GFX950-NEXT:    v_add_i32 v0, v0, v2 clamp
-; GFX950-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX9-NODL-LABEL: dot4_mismatched_sign_zext_sadd:
-; GFX9-NODL:       ; %bb.0: ; %entry
-; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v3, 8, v0
-; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v4, 8, v1
-; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v5, v0, v1 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v6, v0, v1 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
-; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v0, v0, v1 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_3 src1_sel:BYTE_3
-; GFX9-NODL-NEXT:    v_mad_u32_u24 v0, v3, v4, v0
-; GFX9-NODL-NEXT:    v_add3_u32 v0, v5, v6, v0
-; GFX9-NODL-NEXT:    v_add_i32 v0, v0, v2 clamp
-; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
-entry:
-  %a_vec = bitcast i32 %a_packed to <4 x i8>
-  %b_vec = bitcast i32 %b_packed to <4 x i8>
-  %a_ext = zext <4 x i8> %a_vec to <4 x i32>
-  %b_ext = zext <4 x i8> %b_vec to <4 x i32>
-  %mul = mul <4 x i32> %a_ext, %b_ext
-  %sum = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %mul)
-  %result = call i32 @llvm.sadd.sat.i32(i32 %sum, i32 %c)
-  ret i32 %result
-}
-
-; Negative test: mismatched signedness (sext with uadd.sat)
-define i32 @dot4_mismatched_sign_sext_uadd(i32 %a_packed, i32 %b_packed, i32 %c) {
-; GFX9-DL-LABEL: dot4_mismatched_sign_sext_uadd:
-; GFX9-DL:       ; %bb.0: ; %entry
-; GFX9-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-DL-NEXT:    v_dot4_i32_i8 v0, v0, v1, 0
-; GFX9-DL-NEXT:    v_add_u32_e64 v0, v0, v2 clamp
-; GFX9-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX10-DL-LABEL: dot4_mismatched_sign_sext_uadd:
-; GFX10-DL:       ; %bb.0: ; %entry
-; GFX10-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10-DL-NEXT:    v_mov_b32_e32 v3, 0
-; GFX10-DL-NEXT:    v_dot4c_i32_i8 v3, v0, v1
-; GFX10-DL-NEXT:    v_add_nc_u32_e64 v0, v3, v2 clamp
-; GFX10-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX950-LABEL: dot4_mismatched_sign_sext_uadd:
-; GFX950:       ; %bb.0: ; %entry
-; GFX950-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX950-NEXT:    v_mov_b32_e32 v3, 0
-; GFX950-NEXT:    v_dot4c_i32_i8_e32 v3, v0, v1
-; GFX950-NEXT:    s_nop 2
-; GFX950-NEXT:    v_add_u32_e64 v0, v3, v2 clamp
-; GFX950-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX9-NODL-LABEL: dot4_mismatched_sign_sext_uadd:
-; GFX9-NODL:       ; %bb.0: ; %entry
-; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v3, 8, v1
-; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v4, 8, v0
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v5, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v3, sext(v4), sext(v3) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v4, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v0, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_3 src1_sel:BYTE_3
-; GFX9-NODL-NEXT:    v_add_u32_e32 v0, v3, v0
-; GFX9-NODL-NEXT:    v_add3_u32 v0, v5, v4, v0
-; GFX9-NODL-NEXT:    v_add_u32_e64 v0, v0, v2 clamp
-; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
-entry:
-  %a_vec = bitcast i32 %a_packed to <4 x i8>
-  %b_vec = bitcast i32 %b_packed to <4 x i8>
-  %a_ext = sext <4 x i8> %a_vec to <4 x i32>
-  %b_ext = sext <4 x i8> %b_vec to <4 x i32>
-  %mul = mul <4 x i32> %a_ext, %b_ext
-  %sum = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %mul)
-  %result = call i32 @llvm.uadd.sat.i32(i32 %sum, i32 %c)
-  ret i32 %result
-}
-
-; Negative test: mixed zext/sext operands
-define i32 @dot4_mixed_ext(i32 %a_packed, i32 %b_packed, i32 %c) {
-; GFX9-DL-LABEL: dot4_mixed_ext:
-; GFX9-DL:       ; %bb.0: ; %entry
-; GFX9-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-DL-NEXT:    v_lshrrev_b16_e32 v3, 8, v1
-; GFX9-DL-NEXT:    v_mul_i32_i24_sdwa v4, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-DL-NEXT:    v_mul_i32_i24_sdwa v3, v0, sext(v3) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_1 src1_sel:BYTE_0
-; GFX9-DL-NEXT:    v_mul_i32_i24_sdwa v5, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
-; GFX9-DL-NEXT:    v_mul_i32_i24_sdwa v0, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_3 src1_sel:BYTE_3
-; GFX9-DL-NEXT:    v_add_u32_e32 v0, v3, v0
-; GFX9-DL-NEXT:    v_add_u32_e32 v1, v4, v5
-; GFX9-DL-NEXT:    v_add3_u32 v0, v1, v0, v2
-; GFX9-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX10-DL-LABEL: dot4_mixed_ext:
-; GFX10-DL:       ; %bb.0: ; %entry
-; GFX10-DL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10-DL-NEXT:    v_mov_b32_e32 v3, 0xffff
-; GFX10-DL-NEXT:    v_lshrrev_b16 v4, 8, v1
-; GFX10-DL-NEXT:    v_mul_i32_i24_sdwa v5, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX10-DL-NEXT:    v_mul_i32_i24_sdwa v6, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_3 src1_sel:BYTE_3
-; GFX10-DL-NEXT:    v_and_b32_sdwa v3, v3, v0 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:DWORD src1_sel:BYTE_1
-; GFX10-DL-NEXT:    v_mul_i32_i24_sdwa v0, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
-; GFX10-DL-NEXT:    v_mul_i32_i24_sdwa v3, v3, sext(v4) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:DWORD src1_sel:BYTE_0
-; GFX10-DL-NEXT:    v_add_nc_u32_e32 v0, v5, v0
-; GFX10-DL-NEXT:    v_add_nc_u32_e32 v1, v3, v6
-; GFX10-DL-NEXT:    v_add3_u32 v0, v0, v1, v2
-; GFX10-DL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX950-LABEL: dot4_mixed_ext:
-; GFX950:       ; %bb.0: ; %entry
-; GFX950-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX950-NEXT:    v_lshrrev_b16_e32 v3, 8, v1
-; GFX950-NEXT:    v_mul_i32_i24_sdwa v4, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX950-NEXT:    v_mul_i32_i24_sdwa v3, v0, sext(v3) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_1 src1_sel:BYTE_0
-; GFX950-NEXT:    v_mul_i32_i24_sdwa v5, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
-; GFX950-NEXT:    v_mul_i32_i24_sdwa v0, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_3 src1_sel:BYTE_3
-; GFX950-NEXT:    v_add_u32_e32 v0, v3, v0
-; GFX950-NEXT:    v_add_u32_e32 v1, v4, v5
-; GFX950-NEXT:    v_add3_u32 v0, v1, v0, v2
-; GFX950-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX9-NODL-LABEL: dot4_mixed_ext:
-; GFX9-NODL:       ; %bb.0: ; %entry
-; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_lshrrev_b16_e32 v3, 8, v1
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v4, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v3, v0, sext(v3) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_1 src1_sel:BYTE_0
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v5, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_2 src1_sel:BYTE_2
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v0, v0, sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_3 src1_sel:BYTE_3
-; GFX9-NODL-NEXT:    v_add_u32_e32 v0, v3, v0
-; GFX9-NODL-NEXT:    v_add_u32_e32 v1, v4, v5
-; GFX9-NODL-NEXT:    v_add3_u32 v0, v1, v0, v2
-; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
-entry:
-  %a_vec = bitcast i32 %a_packed to <4 x i8>
-  %b_vec = bitcast i32 %b_packed to <4 x i8>
-  %a_ext = zext <4 x i8> %a_vec to <4 x i32>
-  %b_ext = sext <4 x i8> %b_vec to <4 x i32>
-  %mul = mul <4 x i32> %a_ext, %b_ext
-  %sum = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %mul)
-  %result = add i32 %sum, %c
-  ret i32 %result
-}
 
 ; Negative test: wrong vector size (not <4 x i8>)
 define i32 @dot_wrong_vec_size(<2 x i8> %a, <2 x i8> %b, i32 %c) {
@@ -1093,8 +420,6 @@ entry:
   ret i32 %result
 }
 
-declare i32 @llvm.vector.reduce.add.v2i32(<2 x i32>)
-
 ;------------------------------------------------------------------------------
 ; SCALAR PACKED I16 SATURATING TESTS (exercise TableGen UDot2SatPat/SDot2SatPat)
 ;------------------------------------------------------------------------------
@@ -1124,9 +449,10 @@ define i32 @scalar_udot2_sat(i32 %a, i32 %b, i32 %c) {
 ; GFX9-NODL-LABEL: scalar_udot2_sat:
 ; GFX9-NODL:       ; %bb.0: ; %entry
 ; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v3, v0, v1 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
+; GFX9-NODL-NEXT:    v_lshrrev_b32_e32 v3, 16, v0
+; GFX9-NODL-NEXT:    v_lshrrev_b32_e32 v4, 16, v1
 ; GFX9-NODL-NEXT:    v_mul_u32_u24_sdwa v0, v0, v1 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_0 src1_sel:WORD_0
-; GFX9-NODL-NEXT:    v_add_u32_e32 v0, v3, v0
+; GFX9-NODL-NEXT:    v_mad_u32_u24 v0, v3, v4, v0
 ; GFX9-NODL-NEXT:    v_add_u32_e64 v0, v0, v2 clamp
 ; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
 entry:
@@ -1171,9 +497,10 @@ define i32 @scalar_sdot2_sat(i32 %a, i32 %b, i32 %c) {
 ; GFX9-NODL-LABEL: scalar_sdot2_sat:
 ; GFX9-NODL:       ; %bb.0: ; %entry
 ; GFX9-NODL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v3, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
+; GFX9-NODL-NEXT:    v_ashrrev_i32_e32 v3, 16, v0
+; GFX9-NODL-NEXT:    v_ashrrev_i32_e32 v4, 16, v1
 ; GFX9-NODL-NEXT:    v_mul_i32_i24_sdwa v0, sext(v0), sext(v1) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_0 src1_sel:WORD_0
-; GFX9-NODL-NEXT:    v_add_u32_e32 v0, v3, v0
+; GFX9-NODL-NEXT:    v_mad_i32_i24 v0, v3, v4, v0
 ; GFX9-NODL-NEXT:    v_add_i32 v0, v0, v2 clamp
 ; GFX9-NODL-NEXT:    s_setpc_b64 s[30:31]
 entry:
@@ -1194,3 +521,7 @@ entry:
   %result = call i32 @llvm.sadd.sat.i32(i32 %sum, i32 %c)
   ret i32 %result
 }
+
+declare i32 @llvm.sadd.sat.i32(i32, i32)
+declare i32 @llvm.uadd.sat.i32(i32, i32)
+declare i32 @llvm.vector.reduce.add.v2i32(<2 x i32>)
