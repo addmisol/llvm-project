@@ -1135,6 +1135,7 @@ Value *AMDGPUCodeGenPrepareImpl::expandDivRem24Impl(
 
   // fb = fabs(fb);
   FB = Builder.CreateFAbs(FB, FQ);
+
   // int cv = fr >= fb;
   Value *CV = Builder.CreateFCmpOGE(FR, FB);
 
