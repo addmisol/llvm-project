@@ -1995,7 +1995,7 @@ define i64 @lshr_mad_i64_negative_2(i64 %arg0) #0 {
 ; GFX1250-NEXT:    v_mad_nc_u64_u32 v[2:3], 0xd1, v1, v[0:1]
 ; GFX1250-NEXT:    v_lshlrev_b32_e32 v0, 8, v1
 ; GFX1250-NEXT:    s_delay_alu instid0(VALU_DEP_1)
-; GFX1250-NEXT:    v_dual_sub_nc_u32 v1, v3, v0 :: v_dual_mov_b32 v0, v2
+; GFX1250-NEXT:    v_dual_mov_b32 v0, v2 :: v_dual_sub_nc_u32 v1, v3, v0
 ; GFX1250-NEXT:    s_set_pc_i64 s[30:31]
   %lsh = lshr i64 %arg0, 32
   %mul = mul i64 %lsh, s0xffffff00000000d1
@@ -2230,9 +2230,8 @@ define amdgpu_ps i64 @lshr_mad_i64_sgpr(i64 inreg %arg0) #0 {
 ; GFX1250-NEXT:    s_setreg_imm32_b32 hwreg(HW_REG_WAVE_MODE, 25, 1), 1 ; msbs: dst=0 src0=0 src1=0 src2=0
 ; GFX1250-NEXT:    s_mov_b32 s3, 0
 ; GFX1250-NEXT:    s_mov_b32 s2, s1
-; GFX1250-NEXT:    s_mov_b64 s[4:5], 0xffffffffffff1c18
 ; GFX1250-NEXT:    s_delay_alu instid0(SALU_CYCLE_1) | instskip(NEXT) | instid1(SALU_CYCLE_1)
-; GFX1250-NEXT:    s_mul_u64 s[2:3], s[2:3], s[4:5]
+; GFX1250-NEXT:    s_mul_u64 s[2:3], s[2:3], 0xffffffffffff1c18
 ; GFX1250-NEXT:    s_add_nc_u64 s[0:1], s[2:3], s[0:1]
 ; GFX1250-NEXT:    ; return to shader part epilog
   %lsh = lshr i64 %arg0, 32
