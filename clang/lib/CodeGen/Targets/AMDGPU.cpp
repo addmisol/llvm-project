@@ -42,8 +42,7 @@ private:
   }
 
 public:
-  explicit AMDGPUABIInfo(CodeGen::CodeGenTypes &CGT) :
-    DefaultABIInfo(CGT) {}
+  explicit AMDGPUABIInfo(CodeGen::CodeGenTypes &CGT) : DefaultABIInfo(CGT) {}
 
   ABIArgInfo classifyReturnType(QualType RetTy) const;
   ABIArgInfo classifyKernelArgumentType(QualType Ty) const;
@@ -70,8 +69,8 @@ bool AMDGPUABIInfo::isHomogeneousAggregateBaseType(QualType Ty) const {
   return true;
 }
 
-bool AMDGPUABIInfo::isHomogeneousAggregateSmallEnough(
-  const Type *Base, uint64_t Members) const {
+bool AMDGPUABIInfo::isHomogeneousAggregateSmallEnough(const Type *Base,
+                                                      uint64_t Members) const {
   uint32_t NumRegs = (getContext().getTypeSize(Base) + 31) / 32;
 
   // Homogeneous Aggregates may occupy at most 16 registers.
@@ -81,10 +80,8 @@ bool AMDGPUABIInfo::isHomogeneousAggregateSmallEnough(
 /// Check if struct contains only identical float types that can be packed
 /// into a vector (e.g., {half, half} -> <2 x half>, {float, float} -> <2 x
 /// float>). Returns the vector type if packable, nullptr otherwise.
-static llvm::Type *
-getPackableHomogeneousFloatVectorType(const RecordDecl *RD,
-                                      const ASTContext &Context,
-                                      llvm::LLVMContext &VMContext) {
+static llvm::Type *getPackableHomogeneousFloatVectorType(
+    const RecordDecl *RD, const ASTContext &Context, CodeGenTypes &CGT) {
   QualType FirstFloatTy;
   unsigned Count = 0;
 
@@ -113,30 +110,7 @@ getPackableHomogeneousFloatVectorType(const RecordDecl *RD,
   if (Count != 2 && Count != 4)
     return nullptr;
 
-  // Convert QualType to LLVM Type
-  llvm::Type *EltTy = nullptr;
-  const BuiltinType *BT = FirstFloatTy->getAs<BuiltinType>();
-  if (!BT)
-    return nullptr;
-
-  switch (BT->getKind()) {
-  case BuiltinType::Half:
-  case BuiltinType::Float16:
-    EltTy = llvm::Type::getHalfTy(VMContext);
-    break;
-  case BuiltinType::BFloat16:
-    EltTy = llvm::Type::getBFloatTy(VMContext);
-    break;
-  case BuiltinType::Float:
-    EltTy = llvm::Type::getFloatTy(VMContext);
-    break;
-  case BuiltinType::Double:
-    EltTy = llvm::Type::getDoubleTy(VMContext);
-    break;
-  default:
-    return nullptr;
-  }
-
+  llvm::Type *EltTy = CGT.ConvertType(FirstFloatTy);
   return llvm::FixedVectorType::get(EltTy, Count);
 }
 
@@ -285,7 +259,7 @@ ABIArgInfo AMDGPUABIInfo::classifyReturnType(QualType RetTy) const {
         // e.g., {half, half} -> <2 x half>, {float, float} -> <2 x float>
         if (RD) {
           if (llvm::Type *VecTy = getPackableHomogeneousFloatVectorType(
-                  RD, getContext(), getVMContext())) {
+                  RD, getContext(), CGT)) {
             return ABIArgInfo::getDirect(VecTy);
           }
         }
@@ -396,8 +370,8 @@ ABIArgInfo AMDGPUABIInfo::classifyArgumentType(QualType Ty, bool Variadic,
       // First, try to pack uniform float structs into vectors
       // e.g., {half, half} -> <2 x half>, {float, float} -> <2 x float>
       if (RD) {
-        if (llvm::Type *VecTy = getPackableHomogeneousFloatVectorType(
-                RD, getContext(), getVMContext())) {
+        if (llvm::Type *VecTy =
+                getPackableHomogeneousFloatVectorType(RD, getContext(), CGT)) {
           unsigned NumRegs = (Size + 31) / 32;
           NumRegsLeft -= std::min(NumRegsLeft, NumRegs);
           return ABIArgInfo::getDirect(VecTy);
@@ -462,7 +436,8 @@ public:
   unsigned getDeviceKernelCallingConv() const override;
 
   llvm::Constant *getNullPointer(const CodeGen::CodeGenModule &CGM,
-      llvm::PointerType *T, QualType QT) const override;
+                                 llvm::PointerType *T,
+                                 QualType QT) const override;
 
   LangAS getASTAllocaAddressSpace() const override {
     return getLangASFromTargetAS(
@@ -617,9 +592,10 @@ unsigned AMDGPUTargetCodeGenInfo::getDeviceKernelCallingConv() const {
 // emitting null pointers in private and local address spaces, a null
 // pointer in generic address space is emitted which is casted to a
 // pointer in local or private address space.
-llvm::Constant *AMDGPUTargetCodeGenInfo::getNullPointer(
-    const CodeGen::CodeGenModule &CGM, llvm::PointerType *PT,
-    QualType QT) const {
+llvm::Constant *
+AMDGPUTargetCodeGenInfo::getNullPointer(const CodeGen::CodeGenModule &CGM,
+                                        llvm::PointerType *PT,
+                                        QualType QT) const {
   if (CGM.getContext().getTargetNullPointerValue(QT) == 0)
     return llvm::ConstantPointerNull::get(PT);
 
